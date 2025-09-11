@@ -13,7 +13,7 @@ local checkpoints = {
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
-    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.7, maxY = 44.9 },
+    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.6, maxY = 44.9 },
 }
 
 local DUN_MOROGH = "Dun Morogh"
