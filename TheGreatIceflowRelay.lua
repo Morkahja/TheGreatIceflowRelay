@@ -13,7 +13,7 @@ local checkpoints = {
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
-    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.6, maxY = 44.9 },
+    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.7, maxY = 44.9 },
 }
 
 local DUN_MOROGH = "Dun Morogh"
@@ -58,18 +58,23 @@ local function CheckCheckpoint()
     end
 
     if insideCheckpoint then
+        -- Always print checkpoint recognition
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Player is in checkpoint: %s", insideCheckpoint))
+
         -- Starting Stage: reset points
         if insideCheckpoint == "Brewnall Village – Starting Stage" then
             points = 0
             checkpointsCollected = {}
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Starting Stage reached. Points reset to 0.")
+
         -- Finish Stage: summarize points
         elseif insideCheckpoint == "Brewnall Village – Finish Stage" then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Finish Stage reached! Total points collected: %d", points))
             points = 0
             checkpointsCollected = {}
+
         else
-            -- Regular checkpoints
+            -- Regular checkpoints: collect points if not already collected
             if not checkpointsCollected[insideCheckpoint] then
                 points = points + 1
                 checkpointsCollected[insideCheckpoint] = true
