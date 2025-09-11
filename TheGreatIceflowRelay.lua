@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Event-driven checkpoint detection with jump-to-start via Z-axis
+-- Event-driven checkpoint detection with 3-second message cooldown
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -16,43 +16,31 @@ local checkpoints = {
 }
 
 local DUN_MOROGH = 1
-local currentCheckpoint = nil
 local running = false
-local tracking = false
 local debugTick = false
+local lastMessageTime = 0
+local messageCooldown = 3 -- seconds
 
--- Jump-to-start variables
-local jumps = 0
-local jumpsRequired = 5
-local lastZ = nil
-local jumpThreshold = 1.0 -- adjust if needed
-
--- Helper: get map-based X/Y and absolute Z
-local function GetPlayerXYZ()
-    -- Map-based X/Y
+-- Helper: get map-based X/Y
+local function GetPlayerXY()
     SetMapZoom(0)
     SetMapToCurrentZone()
     local x, y = GetPlayerMapPosition("player")
     if x == 0 and y == 0 then return nil end
-    x, y = x*100, y*100
-
-    -- Absolute Z for jump detection
-    local _, _, z = UnitPosition("player")
-    if not z then return nil end
-
-    return x, y, z
+    return x*100, y*100
 end
 
--- Check current position against checkpoints
+-- Check if player is inside a checkpoint
 local function CheckCheckpoint()
-    local x, y = GetPlayerXYZ()
+    local x, y = GetPlayerXY()
     if not x then return end
 
+    local now = GetTime()
+    if now - lastMessageTime < messageCooldown then return end
+
     if GetCurrentMapContinent() ~= DUN_MOROGH then
-        if currentCheckpoint then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s exits checkpoint: %s", UnitName("player"), currentCheckpoint))
-            currentCheckpoint = nil
-        end
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in Dun Morogh")
+        lastMessageTime = now
         return
     end
 
@@ -64,19 +52,13 @@ local function CheckCheckpoint()
         end
     end
 
-    if insideCheckpoint ~= currentCheckpoint then
-        if currentCheckpoint then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s exits checkpoint: %s", UnitName("player"), currentCheckpoint))
-        end
-        if insideCheckpoint then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s enters checkpoint: %s", UnitName("player"), insideCheckpoint))
-        end
-        currentCheckpoint = insideCheckpoint
+    if insideCheckpoint then
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Player is in checkpoint: %s", insideCheckpoint))
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in any checkpoint")
     end
 
-    if debugTick then
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Tick: x=%.2f y=%.2f", x, y))
-    end
+    lastMessageTime = now
 end
 
 -- Event handling
@@ -85,35 +67,12 @@ TheGreatIceflowRelayFrame:RegisterEvent("PLAYER_STOPPED_MOVING")
 TheGreatIceflowRelayFrame:RegisterEvent("UNIT_POSITION_CHANGED")
 
 TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit)
-    local x, y, z = GetPlayerXYZ()
-    if not x then return end
+    if not running then return end
+    if unit and unit ~= "player" then return end
 
-    if not running then
-        -- Jump-to-start detection via Z-axis
-        if lastZ and (z - lastZ) > jumpThreshold then
-            jumps = jumps + 1
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Jump %d/%d", jumps, jumpsRequired))
-            if jumps > jumpsRequired then
-                running = true
-                tracking = IsPlayerMoving() or false
-                DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r READY — GO!")
-            end
-        end
-        lastZ = z
-        return
+    if event == "PLAYER_STARTED_MOVING" or event == "UNIT_POSITION_CHANGED" then
+        CheckCheckpoint()
     end
-
-    -- Event-driven tracking once running
-    if event == "PLAYER_STARTED_MOVING" then
-        tracking = true
-    elseif event == "PLAYER_STOPPED_MOVING" then
-        tracking = false
-    elseif event == "UNIT_POSITION_CHANGED" and unit == "player" then
-        if tracking then
-            CheckCheckpoint()
-        end
-    end
-    lastZ = z
 end)
 
 -- Slash commands
@@ -125,57 +84,30 @@ SlashCmdList["ICEFLOW"] = function(msg)
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Already running!")
             return
         end
-        jumps = 0
-        lastZ = nil
-        running = false
-        tracking = false
+        running = true
         TheGreatIceflowRelayFrame:Show()
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Jump 5 times to start the relay.")
+        lastMessageTime = 0
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
     elseif m == "end" then
         if running then
             running = false
-            tracking = false
-            currentCheckpoint = nil
-            jumps = 0
-            lastZ = nil
             TheGreatIceflowRelayFrame:Hide()
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped.")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay stopped.")
         else
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay is not running.")
         end
     elseif m == "pos" then
-        local x, y = GetPlayerXYZ()
+        local x, y = GetPlayerXY()
         if not x then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
         else
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
         end
-    elseif m == "tick" then
-        debugTick = not debugTick
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Debug tick %s", debugTick and "ON" or "OFF"))
     elseif m == "checkpoints" then
         for _, cp in ipairs(checkpoints) do
             DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
         end
-    elseif m == "check" then
-        local x, y = GetPlayerXYZ()
-        if not x then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
-            return
-        end
-        local insideCheckpoint = nil
-        for _, cp in ipairs(checkpoints) do
-            if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-                insideCheckpoint = cp.name
-                break
-            end
-        end
-        if insideCheckpoint then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s is in checkpoint: %s", UnitName("player"), insideCheckpoint))
-        else
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s is not in any checkpoint", UnitName("player")))
-        end
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | tick | checkpoints | check")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | checkpoints")
     end
 end
