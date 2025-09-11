@@ -28,6 +28,7 @@ local cdTimer = 0
 
 -- Main checkpoint detection
 local function CheckpointOnUpdate(elapsed)
+    elapsed = elapsed or 0
     updateTimer = updateTimer + elapsed
     elapsedTotal = elapsedTotal + elapsed
 
@@ -87,6 +88,7 @@ end
 
 -- Countdown OnUpdate
 local function CountdownOnUpdate(elapsed)
+    elapsed = elapsed or 0
     cdTimer = cdTimer + elapsed
     if cdTimer >= 1 then
         if countdown > 0 then
