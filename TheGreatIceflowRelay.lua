@@ -9,7 +9,7 @@ local checkpoints = {
 
 local DUN_MOROGH = 1
 
--- Utility: point inside triangle
+-- Barycentric method
 local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     local v0x, v0y = cx - ax, cy - ay
     local v1x, v1y = bx - ax, by - ay
@@ -33,6 +33,7 @@ local updateTimer = 0
 
 local f = CreateFrame("Frame")
 f:SetScript("OnUpdate", function(_, elapsed)
+    elapsed = elapsed or 0       -- <-- fix for nil elapsed
     updateTimer = updateTimer + elapsed
     if updateTimer < 0.5 then return end
     updateTimer = 0
