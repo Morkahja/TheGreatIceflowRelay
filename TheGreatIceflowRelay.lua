@@ -15,9 +15,7 @@ local checkpoints = {
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
 }
 
--- Iceflow Lake AreaID — replace with actual number from /run DEFAULT_CHAT_FRAME:AddMessage(GetCurrentMapAreaID())
-local ICEFLOW_LAKE_AREAID = 1234  
-
+local ICEFLOW_LAKE_NAME = "Iceflow Lake"  -- zone name check
 local running = false
 local debugTick = false
 local lastMessageTime = 0
@@ -40,7 +38,8 @@ local function CheckCheckpoint()
     local now = GetTime()
     if now - lastMessageTime < messageCooldown then return end
 
-    if GetCurrentMapAreaID() ~= ICEFLOW_LAKE_AREAID then
+    -- Zone check using GetZoneText
+    if GetZoneText() ~= ICEFLOW_LAKE_NAME then
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in Iceflow Lake")
         lastMessageTime = now
         return
