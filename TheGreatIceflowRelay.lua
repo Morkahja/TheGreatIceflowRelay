@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Event-driven checkpoint detection
+-- Event-driven checkpoint detection with jump-to-start
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -18,10 +18,13 @@ local checkpoints = {
 local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local running = false
-local debugTick = false
 local tracking = false
-local countdown = 5
-local cdTimer = 0
+local debugTick = false
+
+-- Jump-to-start variables
+local jumps = 0
+local jumpsRequired = 5
+local readyToStart = false
 
 -- Helper: get player position
 local function GetPlayerXY()
@@ -72,10 +75,27 @@ end
 TheGreatIceflowRelayFrame:RegisterEvent("PLAYER_STARTED_MOVING")
 TheGreatIceflowRelayFrame:RegisterEvent("PLAYER_STOPPED_MOVING")
 TheGreatIceflowRelayFrame:RegisterEvent("UNIT_POSITION_CHANGED")
+TheGreatIceflowRelayFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED") -- detect jumps
 
-TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit)
-    if not running then return end
+TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit, _, spellID)
+    if not running then
+        -- Jump-to-start logic
+        if event == "UNIT_SPELLCAST_SUCCEEDED" and unit == "player" then
+            -- spellID 522 is usually Jump; adjust if different in Turtle WoW
+            if spellID == 522 then
+                jumps = jumps + 1
+                DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Jump %d/%d", jumps, jumpsRequired))
+                if jumps > jumpsRequired then
+                    running = true
+                    tracking = IsPlayerMoving() or false
+                    DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r READY — GO!")
+                end
+            end
+        end
+        return
+    end
 
+    -- Normal event-driven tracking once running
     if event == "PLAYER_STARTED_MOVING" then
         tracking = true
     elseif event == "PLAYER_STOPPED_MOVING" then
@@ -87,23 +107,6 @@ TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit)
     end
 end)
 
--- Countdown OnUpdate (only for start countdown)
-local function CountdownOnUpdate(self, elapsed)
-    cdTimer = cdTimer + (elapsed or 0)
-    if cdTimer >= 1 then
-        if countdown > 0 then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Starting in %d...", countdown))
-            countdown = countdown - 1
-        else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r START!")
-            TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
-            running = true
-            tracking = IsPlayerMoving() or false
-        end
-        cdTimer = 0
-    end
-end
-
 -- Slash commands
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
@@ -113,17 +116,17 @@ SlashCmdList["ICEFLOW"] = function(msg)
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Already running!")
             return
         end
-        countdown = 5
-        cdTimer = 0
-        currentCheckpoint = nil
+        jumps = 0
+        running = false
+        tracking = false
         TheGreatIceflowRelayFrame:Show()
-        TheGreatIceflowRelayFrame:SetScript("OnUpdate", CountdownOnUpdate)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Jump 5 times to start the relay.")
     elseif m == "end" then
         if running then
             running = false
             tracking = false
             currentCheckpoint = nil
-            TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
+            jumps = 0
             TheGreatIceflowRelayFrame:Hide()
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped.")
         else
