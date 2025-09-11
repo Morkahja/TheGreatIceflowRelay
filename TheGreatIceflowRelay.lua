@@ -1,4 +1,7 @@
 -- TheGreatIceflowRelay.lua
+-- Turtle WoW Lia 5.0 compatible
+-- Tracks checkpoints in Dun Morogh and prints enter/exit messages
+
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", points = {{31.5,44.2},{31.6,44.8},{30.9,44.9}} },
     { name = "The Tree", points = {{32.8,39.1},{32.3,39.2},{32.6,38.5}} },
@@ -8,8 +11,11 @@ local checkpoints = {
 }
 
 local DUN_MOROGH = 1
+local currentCheckpoint = nil
+local updateTimer = 0
+local DEBUG = false  -- set true to print coordinates for testing
 
--- Barycentric method
+-- Barycentric method to check if point is inside triangle
 local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     local v0x, v0y = cx - ax, cy - ay
     local v1x, v1y = bx - ax, by - ay
@@ -28,16 +34,14 @@ local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     return (u >= 0) and (v >= 0) and (u + v <= 1)
 end
 
-local currentCheckpoint = nil
-local updateTimer = 0
-
 local f = CreateFrame("Frame")
 f:SetScript("OnUpdate", function(_, elapsed)
-    elapsed = elapsed or 0       -- <-- fix for nil elapsed
+    elapsed = elapsed or 0
     updateTimer = updateTimer + elapsed
-    if updateTimer < 0.5 then return end
+    if updateTimer < 0.5 then return end  -- check every 0.5 seconds
     updateTimer = 0
 
+    -- Check we are in Dun Morogh
     local continent = GetCurrentMapContinent()
     if continent ~= DUN_MOROGH then
         if currentCheckpoint then
@@ -47,10 +51,16 @@ f:SetScript("OnUpdate", function(_, elapsed)
         return
     end
 
+    -- Ensure map coordinates are valid
+    SetMapZoom(0)
     SetMapToCurrentZone()
     local x, y = GetPlayerMapPosition("player")
     if x == 0 and y == 0 then return end
     x, y = x*100, y*100
+
+    if DEBUG then
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("DEBUG: x=%.1f y=%.1f", x, y))
+    end
 
     local insideCheckpoint = nil
     for _, cp in ipairs(checkpoints) do
