@@ -1,15 +1,10 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
 -- Rectangle-based checkpoint detection with 5-second countdown
--- Frame is invisible but functional
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
-local f = TheGreatIceflowRelayFrame
-f:SetSize(1,1)           -- tiny size
-f:SetPoint("CENTER")      -- doesn't matter
-f:Show()                  -- must be shown for OnUpdate
-f:SetAlpha(0)             -- invisible
+TheGreatIceflowRelayFrame:Hide()  -- hidden by default
 
 -- Rectangle checkpoints
 local checkpoints = {
@@ -17,8 +12,7 @@ local checkpoints = {
     { name = "The Tree", minX = 32.3, maxX = 32.8, minY = 39.1, maxY = 39.2 },
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
-    -- "Behind the Branch" as rectangle approximation of polygon
-    { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
+    { name = "Behind the Branch", minX = 34.6, maxX = 34.7, minY = 45.7, maxY = 46.0 },
 }
 
 local DUN_MOROGH = 1
@@ -41,7 +35,8 @@ local function CheckpointOnUpdate(elapsed)
     -- Auto stop after 3 hours
     if elapsedTotal >= 3*60*60 then
         running = false
-        f:SetScript("OnUpdate", nil)
+        TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
+        TheGreatIceflowRelayFrame:Hide()
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped automatically after 3 hours.")
         return
     end
@@ -105,7 +100,7 @@ local function CountdownOnUpdate(elapsed)
             updateTimer = 0
             elapsedTotal = 0
             running = true
-            f:SetScript("OnUpdate", CheckpointOnUpdate)
+            TheGreatIceflowRelayFrame:SetScript("OnUpdate", CheckpointOnUpdate)
         end
         cdTimer = 0
     end
@@ -123,11 +118,13 @@ SlashCmdList["ICEFLOW"] = function(msg)
         countdown = 5
         cdTimer = 0
         currentCheckpoint = nil
-        f:SetScript("OnUpdate", CountdownOnUpdate)
+        TheGreatIceflowRelayFrame:Show()
+        TheGreatIceflowRelayFrame:SetScript("OnUpdate", CountdownOnUpdate)
     elseif m == "end" then
         if running then
             running = false
-            f:SetScript("OnUpdate", nil)
+            TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
+            TheGreatIceflowRelayFrame:Hide()
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped.")
         else
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay is not running.")
