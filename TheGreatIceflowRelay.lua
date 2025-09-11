@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- Event-driven checkpoint detection with Iceflow shard system and ball timer
+-- Event-driven checkpoint detection with Iceflow shard system and live ball debug
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -29,7 +29,9 @@ local finishTriggered = false
 local hasBall = false
 local ballStartTime = 0
 local ballTotalTime = 0
-local BALL_NAME = "Heavy Leather Ball" -- adjust to Turtle WoW ball name
+local BALL_NAME = "Heavy Leather Ball" -- Turtle WoW item name
+local lastDebugTime = 0
+local debugInterval = 2 -- seconds
 
 -- Helper: send message to group if in party, else to chat
 local function RelayMessage(msg)
@@ -97,7 +99,6 @@ local function CheckCheckpoint()
         end
     end
 
-    -- Reset start/finish flags if leaving their areas
     if not insideAnyCheckpoint then
         startTriggered = false
         finishTriggered = false
@@ -110,7 +111,7 @@ local function CheckBall()
     for b = 0, NUM_BAG_SLOTS do
         local slots = GetContainerNumSlots(b)
         for s = 1, slots do
-            local _, count, _, _, _, link = GetContainerItemInfo(b, s)
+            local _, _, _, _, _, link = GetContainerItemInfo(b, s)
             if link and string.find(link, BALL_NAME) then
                 foundBall = true
                 break
@@ -120,12 +121,10 @@ local function CheckBall()
     end
 
     if foundBall and not hasBall then
-        -- Player just received a ball
         hasBall = true
         ballStartTime = GetTime()
         RelayMessage("I received the ball. Timer started.")
     elseif not foundBall and hasBall then
-        -- Player just threw the last ball
         hasBall = false
         local elapsed = GetTime() - ballStartTime
         ballTotalTime = ballTotalTime + elapsed
@@ -138,6 +137,13 @@ TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self)
     if running then
         CheckCheckpoint()
         CheckBall()
+
+        -- Live debug print every debugInterval seconds
+        local now = GetTime()
+        if now - lastDebugTime >= debugInterval then
+            lastDebugTime = now
+            RelayMessage(string.format("DEBUG: hasBall=%s, ballTotalTime=%.2f", tostring(hasBall), ballTotalTime))
+        end
     end
 end)
 
@@ -158,6 +164,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
         finishTriggered = false
         ballTotalTime = 0
         hasBall = false
+        lastDebugTime = 0
         TheGreatIceflowRelayFrame:Show()
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
     elseif m == "end" then
