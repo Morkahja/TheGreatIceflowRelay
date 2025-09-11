@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- Event-driven checkpoint detection with Iceflow shard system and single-trigger start/finish messages
+-- Event-driven checkpoint detection with Iceflow shard system and ball possession timer
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -25,7 +25,13 @@ local visitedCheckpoints = {}
 local startTriggered = false
 local finishTriggered = false
 
--- Helper: send message to group if in party, else to chat
+-- Ball tracking
+local ballItemID = 21229
+local hasBall = false
+local ballStartTime = 0
+local totalBallTime = 0
+
+-- Helper: send message to party or chat
 local function RelayMessage(msg)
     if GetNumPartyMembers() > 0 then
         SendChatMessage("[Iceflow Relay] " .. msg, "PARTY")
@@ -53,31 +59,24 @@ local function CheckCheckpoint()
 
     local zone = GetZoneText()
     if zone ~= "Dun Morogh" then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Not in Dun Morogh (current: " .. zone .. ")")
         lastMessageTime = now
         return
     end
 
-    local insideAnyCheckpoint = false
-
     for _, cp in ipairs(checkpoints) do
         if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-            insideAnyCheckpoint = true
-            if cp.name == "Brewnall Village – Starting Stage" then
-                if not startTriggered then
-                    playerShards = 0
-                    visitedCheckpoints = {}
-                    RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
-                    startTriggered = true
-                end
+            if cp.name == "Brewnall Village – Starting Stage" and not startTriggered then
+                startTriggered = true
                 finishTriggered = false
-            elseif cp.name == "Brewnall Village – Finish Stage" then
-                if not finishTriggered then
-                    RelayMessage(string.format("I finished the relay with %d Iceflow shards!", playerShards))
-                    finishTriggered = true
-                end
+                playerShards = 0
+                visitedCheckpoints = {}
+                totalBallTime = 0
+                RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
+            elseif cp.name == "Brewnall Village – Finish Stage" and not finishTriggered then
+                finishTriggered = true
                 startTriggered = false
-            else
+                RelayMessage(string.format("I finished the relay with %d Iceflow shards! Total ball holding time: %.2f seconds", playerShards, totalBallTime))
+            elseif cp.name ~= "Brewnall Village – Starting Stage" and cp.name ~= "Brewnall Village – Finish Stage" then
                 if not visitedCheckpoints[cp.name] then
                     visitedCheckpoints[cp.name] = true
                     playerShards = playerShards + 1
@@ -88,18 +87,48 @@ local function CheckCheckpoint()
             return
         end
     end
-
-    -- Reset start/finish flags if leaving their areas
-    if not insideAnyCheckpoint then
-        startTriggered = false
-        finishTriggered = false
-    end
 end
 
 -- OnUpdate loop for tracking
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
     if running then
         CheckCheckpoint()
+    end
+end)
+
+-- Ball timer detection
+local BallTimerFrame = CreateFrame("Frame")
+BallTimerFrame:RegisterEvent("BAG_UPDATE")
+BallTimerFrame:SetScript("OnEvent", function(self, event, bagID)
+    local foundBall = false
+    for b = 0, 4 do
+        local slots = GetContainerNumSlots(b)
+        for s = 1, slots do
+            local _, itemLink = GetContainerItemInfo(b, s)
+            if itemLink then
+                local itemID = tonumber(string.match(itemLink, "item:(%d+):"))
+                if itemID == ballItemID then
+                    foundBall = true
+                    break
+                end
+            end
+        end
+        if foundBall then break end
+    end
+
+    -- Ball received
+    if foundBall and not hasBall then
+        hasBall = true
+        ballStartTime = GetTime()
+        RelayMessage("I received the Heavy Leather Ball! Timer started.")
+    end
+
+    -- Ball thrown / no more balls
+    if not foundBall and hasBall then
+        hasBall = false
+        local elapsed = GetTime() - ballStartTime
+        totalBallTime = totalBallTime + elapsed
+        RelayMessage(string.format("I threw the ball! Timer stopped. Time held: %.2f seconds", elapsed))
     end
 end)
 
@@ -118,6 +147,8 @@ SlashCmdList["ICEFLOW"] = function(msg)
         lastMessageTime = 0
         startTriggered = false
         finishTriggered = false
+        hasBall = false
+        totalBallTime = 0
         TheGreatIceflowRelayFrame:Show()
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
     elseif m == "end" then
