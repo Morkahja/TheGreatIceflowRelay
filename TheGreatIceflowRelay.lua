@@ -43,38 +43,63 @@ end
 
 -- Check if player is inside a checkpoint
 local function CheckCheckpoint()
-    local x, y = GetPlayerXY()
-    if not x then return end
+    -- State flags for start/finish messages
+local startTriggered = false
+local finishTriggered = false
 
-    local now = GetTime()
-    if now - lastMessageTime < messageCooldown then return end
+-- Check if player is inside a checkpoint
+local function CheckCheckpoint()
+        local x, y = GetPlayerXY()
+        if not x then return end
 
-    local zone = GetZoneText()
-    if zone ~= "Dun Morogh" then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Not in Dun Morogh (current: " .. zone .. ")")
-        lastMessageTime = now
-        return
-    end
+        local now = GetTime()
+        if now - lastMessageTime < messageCooldown then return end
 
-    for _, cp in ipairs(checkpoints) do
-        if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-            if cp.name == "Brewnall Village – Starting Stage" then
-                playerShards = 0
-                visitedCheckpoints = {}
-                RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
-            elseif cp.name == "Brewnall Village – Finish Stage" then
-                RelayMessage(string.format("I finished the relay with %d Iceflow shards!", playerShards))
-            else
-                if not visitedCheckpoints[cp.name] then
-                    visitedCheckpoints[cp.name] = true
-                    playerShards = playerShards + 1
-                    RelayMessage(string.format("I arrived at \"%s\" and collected 1 Iceflow shard. Total: %d", cp.name, playerShards))
-                end
-            end
+        local zone = GetZoneText()
+        if zone ~= "Dun Morogh" then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Not in Dun Morogh (current: " .. zone .. ")")
             lastMessageTime = now
             return
         end
+
+        local insideAnyCheckpoint = false
+
+        for _, cp in ipairs(checkpoints) do
+            if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
+                insideAnyCheckpoint = true
+                if cp.name == "Brewnall Village – Starting Stage" then
+                    if not startTriggered then
+                        playerShards = 0
+                        visitedCheckpoints = {}
+                        RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
+                        startTriggered = true
+                    end
+                    finishTriggered = false -- reset finish flag in case player is leaving finish area
+                elseif cp.name == "Brewnall Village – Finish Stage" then
+                    if not finishTriggered then
+                        RelayMessage(string.format("I finished the relay with %d Iceflow shards!", playerShards))
+                        finishTriggered = true
+                    end
+                    startTriggered = false -- reset start flag if leaving start
+                else
+                    if not visitedCheckpoints[cp.name] then
+                        visitedCheckpoints[cp.name] = true
+                        playerShards = playerShards + 1
+                        RelayMessage(string.format("I arrived at \"%s\" and collected 1 Iceflow shard. Total: %d", cp.name, playerShards))
+                    end
+                end
+                lastMessageTime = now
+                return
+            end
+        end
+
+        -- Reset start/finish flags if leaving their areas
+        if not insideAnyCheckpoint then
+            startTriggered = false
+            finishTriggered = false
+        end
     end
+
 end
 
 -- OnUpdate loop for tracking
