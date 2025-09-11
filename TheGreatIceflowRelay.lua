@@ -1,30 +1,36 @@
 -- TheGreatIceflowRelay.lua
--- Turtle WoW Lia 5.0 compatible
--- Event-driven checkpoint detection with 2-second message cooldown and point collection
+-- Turtle WoW Lua 5.0 compatible
+-- Event-driven checkpoint detection with Iceflow shard system
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
-TheGreatIceflowRelayFrame:Hide()  -- hidden by default
+TheGreatIceflowRelayFrame:Hide() -- hidden by default
 
 -- Rectangle checkpoints
 local checkpoints = {
     { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
-    { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.25 },
+    { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.25 }, -- 0.15 x 0.15 square
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
     { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.7, maxY = 44.9 },
 }
 
-local DUN_MOROGH = "Dun Morogh"
+-- State
 local running = false
-local debugTick = false
 local lastMessageTime = 0
 local messageCooldown = 2 -- seconds
+local playerShards = 0
+local visitedCheckpoints = {}
 
--- Point system
-local points = 0
-local checkpointsCollected = {}
+-- Helper: send message to group if in party, else to chat
+local function RelayMessage(msg)
+    if GetNumPartyMembers() > 0 then
+        SendChatMessage("[Iceflow Relay] " .. msg, "PARTY")
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r " .. msg)
+    end
+end
 
 -- Helper: get validated player position
 local function GetPlayerXY()
@@ -43,49 +49,32 @@ local function CheckCheckpoint()
     local now = GetTime()
     if now - lastMessageTime < messageCooldown then return end
 
-    if GetZoneText() ~= DUN_MOROGH then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in Dun Morogh")
+    local zone = GetZoneText()
+    if zone ~= "Dun Morogh" then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Not in Dun Morogh (current: " .. zone .. ")")
         lastMessageTime = now
         return
     end
 
-    local insideCheckpoint = nil
     for _, cp in ipairs(checkpoints) do
         if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-            insideCheckpoint = cp.name
-            break
-        end
-    end
-
-    if insideCheckpoint then
-        -- Always print checkpoint recognition
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Player is in checkpoint: %s", insideCheckpoint))
-
-        -- Starting Stage: reset points
-        if insideCheckpoint == "Brewnall Village – Starting Stage" then
-            points = 0
-            checkpointsCollected = {}
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Starting Stage reached. Points reset to 0.")
-
-        -- Finish Stage: summarize points
-        elseif insideCheckpoint == "Brewnall Village – Finish Stage" then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Finish Stage reached! Total points collected: %d", points))
-            points = 0
-            checkpointsCollected = {}
-
-        else
-            -- Regular checkpoints: collect points if not already collected
-            if not checkpointsCollected[insideCheckpoint] then
-                points = points + 1
-                checkpointsCollected[insideCheckpoint] = true
-                DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Point collected at %s! Total points: %d", insideCheckpoint, points))
+            if cp.name == "Brewnall Village – Starting Stage" then
+                playerShards = 0
+                visitedCheckpoints = {}
+                RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
+            elseif cp.name == "Brewnall Village – Finish Stage" then
+                RelayMessage(string.format("I finished the relay with %d Iceflow shards!", playerShards))
+            else
+                if not visitedCheckpoints[cp.name] then
+                    visitedCheckpoints[cp.name] = true
+                    playerShards = playerShards + 1
+                    RelayMessage(string.format("I arrived at \"%s\" and collected 1 Iceflow shard. Total: %d", cp.name, playerShards))
+                end
             end
+            lastMessageTime = now
+            return
         end
-    else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in any checkpoint")
     end
-
-    lastMessageTime = now
 end
 
 -- OnUpdate loop for tracking
@@ -105,11 +94,11 @@ SlashCmdList["ICEFLOW"] = function(msg)
             return
         end
         running = true
+        playerShards = 0
+        visitedCheckpoints = {}
         lastMessageTime = 0
-        points = 0
-        checkpointsCollected = {}
         TheGreatIceflowRelayFrame:Show()
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints and collect points.")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
     elseif m == "end" then
         if running then
             running = false
@@ -147,10 +136,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
         for _, cp in ipairs(checkpoints) do
             DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
         end
-    elseif m == "tick" then
-        debugTick = not debugTick
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Debug tick %s", debugTick and "ON" or "OFF"))
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints | tick")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints")
     end
 end
