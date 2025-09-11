@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- Event-driven checkpoint detection with Iceflow shard system and single-trigger start/finish messages
+-- Event-driven checkpoint detection with Iceflow shard system and ball timer
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -24,6 +24,12 @@ local playerShards = 0
 local visitedCheckpoints = {}
 local startTriggered = false
 local finishTriggered = false
+
+-- Ball timer state
+local hasBall = false
+local ballStartTime = 0
+local ballTotalTime = 0
+local BALL_NAME = "Heavy Leather Ball" -- adjust to Turtle WoW ball name
 
 -- Helper: send message to group if in party, else to chat
 local function RelayMessage(msg)
@@ -67,16 +73,18 @@ local function CheckCheckpoint()
                 if not startTriggered then
                     playerShards = 0
                     visitedCheckpoints = {}
-                    RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
+                    ballTotalTime = 0
+                    hasBall = false
                     startTriggered = true
+                    finishTriggered = false
+                    RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
                 end
-                finishTriggered = false
             elseif cp.name == "Brewnall Village – Finish Stage" then
                 if not finishTriggered then
-                    RelayMessage(string.format("I finished the relay with %d Iceflow shards!", playerShards))
+                    RelayMessage(string.format("I finished the relay with %d Iceflow shards and held the ball for %.2f seconds in total!", playerShards, ballTotalTime))
                     finishTriggered = true
+                    startTriggered = false
                 end
-                startTriggered = false
             else
                 if not visitedCheckpoints[cp.name] then
                     visitedCheckpoints[cp.name] = true
@@ -96,10 +104,40 @@ local function CheckCheckpoint()
     end
 end
 
+-- Ball check function
+local function CheckBall()
+    local foundBall = false
+    for b = 0, NUM_BAG_SLOTS do
+        local slots = GetContainerNumSlots(b)
+        for s = 1, slots do
+            local _, count, _, _, _, link = GetContainerItemInfo(b, s)
+            if link and string.find(link, BALL_NAME) then
+                foundBall = true
+                break
+            end
+        end
+        if foundBall then break end
+    end
+
+    if foundBall and not hasBall then
+        -- Player just received a ball
+        hasBall = true
+        ballStartTime = GetTime()
+        RelayMessage("I received the ball. Timer started.")
+    elseif not foundBall and hasBall then
+        -- Player just threw the last ball
+        hasBall = false
+        local elapsed = GetTime() - ballStartTime
+        ballTotalTime = ballTotalTime + elapsed
+        RelayMessage(string.format("I threw the ball. Held it for %.2f seconds. Total: %.2f", elapsed, ballTotalTime))
+    end
+end
+
 -- OnUpdate loop for tracking
-TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
+TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self)
     if running then
         CheckCheckpoint()
+        CheckBall()
     end
 end)
 
@@ -118,6 +156,8 @@ SlashCmdList["ICEFLOW"] = function(msg)
         lastMessageTime = 0
         startTriggered = false
         finishTriggered = false
+        ballTotalTime = 0
+        hasBall = false
         TheGreatIceflowRelayFrame:Show()
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
     elseif m == "end" then
@@ -157,7 +197,9 @@ SlashCmdList["ICEFLOW"] = function(msg)
         for _, cp in ipairs(checkpoints) do
             DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
         end
+    elseif m == "ballcheck" then
+        CheckBall()
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints | ballcheck")
     end
 end
