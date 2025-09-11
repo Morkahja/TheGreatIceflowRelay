@@ -1,0 +1,7 @@
+## Interface: 11300
+## Title: The Great Iceflow Relay
+## Notes: Tracks checkpoints in Dun Morogh and prints a message when entered
+## Author: BabuniGaming
+## Version: 1.0
+
+TheGreatIceflowRelay.lua
