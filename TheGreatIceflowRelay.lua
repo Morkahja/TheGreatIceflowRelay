@@ -1,6 +1,5 @@
--- TheGreatIceflowRelay.lua
--- Turtle WoW Lia 5.0 compatible
--- Rectangle-based checkpoint detection with debug commands
+-- Global frame to avoid garbage collection
+TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
 
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", minX = 31.3, maxX = 31.6, minY = 44.2, maxY = 44.9 },
@@ -14,38 +13,44 @@ local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
 local debugTick = false
+local running = false
+local elapsedTotal = 0
+local countdown = 10
 
--- Slash commands
-SLASH_ICEFLOW1 = "/iceflow"
-SlashCmdList["ICEFLOW"] = function(msg)
-    local m = string.lower(msg or "")
-    if m == "pos" then
-        SetMapZoom(0)
-        SetMapToCurrentZone()
-        local x, y = GetPlayerMapPosition("player")
-        if x == 0 and y == 0 then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
-            return
+-- Start countdown timer
+local function StartCountdown()
+    local cdTimer = 0
+    TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(_, elapsed)
+        cdTimer = cdTimer + elapsed
+        if cdTimer >= 1 and countdown > 0 then
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Starting in %d...", countdown))
+            countdown = countdown - 1
+            cdTimer = 0
+        elseif countdown <= 0 then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay started!")
+            -- Start main detection
+            updateTimer = 0
+            elapsedTotal = 0
+            running = true
+            TheGreatIceflowRelayFrame:SetScript("OnUpdate", CheckpointOnUpdate)
         end
-        x, y = x*100, y*100
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
-    elseif m == "tick" then
-        debugTick = not debugTick
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Debug tick %s", debugTick and "ON" or "OFF"))
-    elseif m == "checkpoints" then
-        for _, cp in ipairs(checkpoints) do
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
-        end
-    else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos | tick | checkpoints")
-    end
+    end)
 end
 
--- OnUpdate for checkpoint detection
-local f = CreateFrame("Frame")
-f:SetScript("OnUpdate", function(_, elapsed)
+-- Main detection function
+function CheckpointOnUpdate(_, elapsed)
     elapsed = elapsed or 0
     updateTimer = updateTimer + elapsed
+    elapsedTotal = elapsedTotal + elapsed
+
+    -- Auto stop after 3 hours
+    if elapsedTotal >= 3*60*60 then
+        running = false
+        TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped automatically after 3 hours.")
+        return
+    end
+
     if updateTimer < 0.5 then return end
     updateTimer = 0
 
@@ -57,14 +62,12 @@ f:SetScript("OnUpdate", function(_, elapsed)
     if x == 0 and y == 0 then return end
     x, y = x*100, y*100
 
-    -- Debug tick
     if debugTick then
         DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Tick: x=%.3f y=%.3f", x, y))
     end
 
-    -- Only track in Dun Morogh
-    local continent = GetCurrentMapContinent()
-    if continent ~= DUN_MOROGH then
+    -- Only Dun Morogh
+    if GetCurrentMapContinent() ~= DUN_MOROGH then
         if currentCheckpoint then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s exits checkpoint: %s", UnitName("player"), currentCheckpoint))
             currentCheckpoint = nil
@@ -91,4 +94,45 @@ f:SetScript("OnUpdate", function(_, elapsed)
             currentCheckpoint = nil
         end
     end
-end)
+end
+
+-- Slash commands
+SLASH_ICEFLOW1 = "/iceflow"
+SlashCmdList["ICEFLOW"] = function(msg)
+    local m = string.lower(msg or "")
+    if m == "start" then
+        if running then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Already running!")
+        else
+            countdown = 10
+            StartCountdown()
+        end
+    elseif m == "end" then
+        if running then
+            running = false
+            TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped manually.")
+        else
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay is not running.")
+        end
+    elseif m == "pos" then
+        SetMapZoom(0)
+        SetMapToCurrentZone()
+        local x, y = GetPlayerMapPosition("player")
+        if x == 0 and y == 0 then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
+            return
+        end
+        x, y = x*100, y*100
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
+    elseif m == "tick" then
+        debugTick = not debugTick
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Debug tick %s", debugTick and "ON" or "OFF"))
+    elseif m == "checkpoints" then
+        for _, cp in ipairs(checkpoints) do
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
+        end
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | tick | checkpoints")
+    end
+end
