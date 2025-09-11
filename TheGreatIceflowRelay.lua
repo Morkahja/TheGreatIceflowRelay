@@ -28,16 +28,15 @@ local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     return (u >= 0) and (v >= 0) and (u + v <= 1)
 end
 
--- Keep track of current checkpoint
 local currentCheckpoint = nil
+local updateTimer = 0
 
 local f = CreateFrame("Frame")
-f:SetScript("OnUpdate", function(self, elapsed)
-    self.timeSinceLast = (self.timeSinceLast or 0) + elapsed
-    if self.timeSinceLast < 0.5 then return end
-    self.timeSinceLast = 0
+f:SetScript("OnUpdate", function(_, elapsed)
+    updateTimer = updateTimer + elapsed
+    if updateTimer < 0.5 then return end
+    updateTimer = 0
 
-    -- Only track in Dun Morogh
     local continent = GetCurrentMapContinent()
     if continent ~= DUN_MOROGH then
         if currentCheckpoint then
@@ -49,12 +48,10 @@ f:SetScript("OnUpdate", function(self, elapsed)
 
     SetMapToCurrentZone()
     local x, y = GetPlayerMapPosition("player")
-    if x == 0 and y == 0 then return end -- ignore invalid map positions
+    if x == 0 and y == 0 then return end
     x, y = x*100, y*100
 
     local insideCheckpoint = nil
-
-    -- Check if inside any checkpoint
     for _, cp in ipairs(checkpoints) do
         local A, B, C = cp.points[1], cp.points[2], cp.points[3]
         if IsInsideTriangle(x, y, A[1], A[2], B[1], B[2], C[1], C[2]) then
