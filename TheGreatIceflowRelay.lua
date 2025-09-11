@@ -47,10 +47,9 @@ end
 -- Slash command /iceflow pos
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
-    msg = msg or ""  -- handle nil
-    msg = msg:lower()
+    local m = string.lower(msg or "")  -- safely handle nil and lowercase
 
-    if msg == "pos" then
+    if m == "pos" then
         -- Force map to current zone for reliable coords
         SetMapZoom(0)
         SetMapToCurrentZone()
