@@ -1,14 +1,14 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Uses barycentric coordinates for reliable checkpoint detection
+-- Rectangle-based checkpoint detection
 
--- Checkpoints
+-- Rectangle checkpoints
 local checkpoints = {
-    { name = "Brewnall Village – Landing Stage", points = {{31.5,44.2},{31.6,44.8},{30.9,44.9}} },
-    { name = "The Tree", points = {{32.8,39.1},{32.3,39.2},{32.6,38.5}} },
-    { name = "Carcass Island", points = {{34.4,41.8},{34.1,42.1},{34.1,41.4}} },
-    { name = "Wet Log", points = {{36.1,40.8},{36.1,40.5},{36.0,40.7}} },
-    { name = "Behind the Branch", points = {{34.7,45.7},{34.6,46.0},{34.5,46.0}} },
+    { name = "Brewnall Village – Landing Stage", minX = 31.3, maxX = 31.6, minY = 44.2, maxY = 44.9 },
+    { name = "The Tree", minX = 32.3, maxX = 32.8, minY = 39.1, maxY = 39.2 },
+    { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
+    { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
+    { name = "Behind the Branch", minX = 34.6, maxX = 34.7, minY = 45.7, maxY = 46.0 },
 }
 
 local DUN_MOROGH = 1
@@ -16,32 +16,10 @@ local currentCheckpoint = nil
 local updateTimer = 0
 local DEBUG = false
 
--- Barycentric method
-local function IsInsideTriangleBarycentric(px, py, A, B, C)
-    local v0x, v0y = C[1]-A[1], C[2]-A[2]
-    local v1x, v1y = B[1]-A[1], B[2]-A[2]
-    local v2x, v2y = px-A[1], py-A[2]
-
-    local dot00 = v0x*v0x + v0y*v0y
-    local dot01 = v0x*v1x + v0y*v1y
-    local dot02 = v0x*v2x + v0y*v2y
-    local dot11 = v1x*v1x + v1y*v1y
-    local dot12 = v1x*v2x + v1y*v2y
-
-    local denom = dot00*dot11 - dot01*dot01
-    if denom == 0 then return false end  -- degenerate triangle
-
-    local u = (dot11*dot02 - dot01*dot12) / denom
-    local v = (dot00*dot12 - dot01*dot02) / denom
-
-    return (u >= 0) and (v >= 0) and (u+v <= 1)
-end
-
 -- Slash command /iceflow pos
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
     local m = string.lower(msg or "")
-
     if m == "pos" then
         SetMapZoom(0)
         SetMapToCurrentZone()
@@ -89,7 +67,7 @@ f:SetScript("OnUpdate", function(_, elapsed)
 
     local insideCheckpoint = nil
     for _, cp in ipairs(checkpoints) do
-        if IsInsideTriangleBarycentric(x, y, cp.points[1], cp.points[2], cp.points[3]) then
+        if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
             insideCheckpoint = cp.name
             break
         end
