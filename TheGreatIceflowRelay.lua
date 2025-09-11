@@ -1,26 +1,30 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Event-driven checkpoint detection with 3-second message cooldown
+-- Event-driven checkpoint detection with 2-second message cooldown and point collection
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
 TheGreatIceflowRelayFrame:Hide()  -- hidden by default
 
--- Rectangle checkpoints (Iceflow Lake coordinates)
+-- Rectangle checkpoints
 local checkpoints = {
     { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
-    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.6, maxY = 44.9 },
     { name = "The Tree", minX = 32.3, maxX = 32.8, minY = 39.1, maxY = 39.2 },
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
+    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.7, maxY = 44.9 },
 }
 
-local DUN_MOROGH_NAME = "Dun Morogh"  -- internal zone check
+local DUN_MOROGH = "Dun Morogh"
 local running = false
 local debugTick = false
 local lastMessageTime = 0
 local messageCooldown = 2 -- seconds
+
+-- Point system
+local points = 0
+local checkpointsCollected = {}
 
 -- Helper: get validated player position
 local function GetPlayerXY()
@@ -39,8 +43,7 @@ local function CheckCheckpoint()
     local now = GetTime()
     if now - lastMessageTime < messageCooldown then return end
 
-    -- Use Dun Morogh as the zone check
-    if GetZoneText() ~= DUN_MOROGH_NAME then
+    if GetZoneText() ~= DUN_MOROGH then
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in Dun Morogh")
         lastMessageTime = now
         return
@@ -55,7 +58,24 @@ local function CheckCheckpoint()
     end
 
     if insideCheckpoint then
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Player is in checkpoint: %s", insideCheckpoint))
+        -- Starting Stage: reset points
+        if insideCheckpoint == "Brewnall Village – Starting Stage" then
+            points = 0
+            checkpointsCollected = {}
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Starting Stage reached. Points reset to 0.")
+        -- Finish Stage: summarize points
+        elseif insideCheckpoint == "Brewnall Village – Finish Stage" then
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Finish Stage reached! Total points collected: %d", points))
+            points = 0
+            checkpointsCollected = {}
+        else
+            -- Regular checkpoints
+            if not checkpointsCollected[insideCheckpoint] then
+                points = points + 1
+                checkpointsCollected[insideCheckpoint] = true
+                DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Point collected at %s! Total points: %d", insideCheckpoint, points))
+            end
+        end
     else
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in any checkpoint")
     end
@@ -81,8 +101,10 @@ SlashCmdList["ICEFLOW"] = function(msg)
         end
         running = true
         lastMessageTime = 0
+        points = 0
+        checkpointsCollected = {}
         TheGreatIceflowRelayFrame:Show()
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints and collect points.")
     elseif m == "end" then
         if running then
             running = false
@@ -127,26 +149,3 @@ SlashCmdList["ICEFLOW"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints | tick")
     end
 end
-
----------------------------------------------------------
--- Ball detection frame for Turtle WoW 5.0 (item name check)
----------------------------------------------------------
-
-local BallTrackerFrame = CreateFrame("Frame")
-BallTrackerFrame:RegisterEvent("BAG_UPDATE")
-
-BallTrackerFrame:SetScript("OnEvent", function(self, event, bagID)
-    local ballName = "Heavy Leather Ball" -- exact item name in Turtle WoW
-
-    for bag = 0, NUM_BAG_SLOTS do
-        local slots = GetContainerNumSlots(bag)
-        for slot = 1, slots do
-            local info = {GetContainerItemInfo(bag, slot)}
-            local name = info[1]
-            if name and name == ballName then
-                DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r You received the Heavy Leather Ball!")
-                return -- stop after first detection
-            end
-        end
-    end
-end)
