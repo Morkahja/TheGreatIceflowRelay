@@ -47,10 +47,14 @@ end
 -- Slash command /iceflow pos
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
+    msg = msg or ""  -- handle nil
     msg = msg:lower()
+
     if msg == "pos" then
+        -- Force map to current zone for reliable coords
         SetMapZoom(0)
         SetMapToCurrentZone()
+
         local x, y = GetPlayerMapPosition("player")
         if x == 0 and y == 0 then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable. Make sure you are in a zone map.")
@@ -62,6 +66,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos")
     end
 end
+
 
 -- OnUpdate frame for checkpoint detection
 local f = CreateFrame("Frame")
