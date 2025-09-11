@@ -15,33 +15,30 @@ local currentCheckpoint = nil
 local updateTimer = 0
 local DEBUG = false  -- set true to print coordinates for testing
 
--- Barycentric method to check if point is inside triangle
+-- Utility: same-side / cross-product method
+local function Sign(px, py, x1, y1, x2, y2)
+    return (px - x2)*(y1 - y2) - (x1 - x2)*(py - y2)
+end
+
 local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
-    local v0x, v0y = cx - ax, cy - ay
-    local v1x, v1y = bx - ax, by - ay
-    local v2x, v2y = px - ax, py - ay
+    local d1 = Sign(px, py, ax, ay, bx, by)
+    local d2 = Sign(px, py, bx, by, cx, cy)
+    local d3 = Sign(px, py, cx, cy, ax, ay)
 
-    local dot00 = v0x*v0x + v0y*v0y
-    local dot01 = v0x*v1x + v0y*v1y
-    local dot02 = v0x*v2x + v0y*v2y
-    local dot11 = v1x*v1x + v1y*v1y
-    local dot12 = v1x*v2x + v1y*v2y
+    local has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+    local has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
 
-    local invDenom = 1 / (dot00 * dot11 - dot01 * dot01)
-    local u = (dot11 * dot02 - dot01 * dot12) * invDenom
-    local v = (dot00 * dot12 - dot01 * dot02) * invDenom
-
-    return (u >= 0) and (v >= 0) and (u + v <= 1)
+    return not (has_neg and has_pos)
 end
 
 local f = CreateFrame("Frame")
 f:SetScript("OnUpdate", function(_, elapsed)
     elapsed = elapsed or 0
     updateTimer = updateTimer + elapsed
-    if updateTimer < 0.5 then return end  -- check every 0.5 seconds
+    if updateTimer < 0.5 then return end
     updateTimer = 0
 
-    -- Check we are in Dun Morogh
+    -- Only track in Dun Morogh
     local continent = GetCurrentMapContinent()
     if continent ~= DUN_MOROGH then
         if currentCheckpoint then
