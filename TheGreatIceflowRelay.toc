@@ -1,4 +1,4 @@
-## Interface: 11300
+## Interface: 11200
 ## Title: The Great Iceflow Relay
 ## Notes: Tracks checkpoints in Dun Morogh and prints a message when entered
 ## Author: BabuniGaming
