@@ -7,7 +7,6 @@ local checkpoints = {
     { name = "Behind the Branch", points = {{34.7,45.7},{34.6,46.0},{34.5,46.0}} },
 }
 
--- Only activate in Dun Morogh (continent 1 = Eastern Kingdoms, zoneID 1 = Dun Morogh)
 local DUN_MOROGH = 1
 
 -- Utility: point inside triangle
@@ -29,33 +28,50 @@ local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     return (u >= 0) and (v >= 0) and (u + v < 1)
 end
 
-local lastCheckpoint = nil
+local currentCheckpoint = nil
 
 local f = CreateFrame("Frame")
 f:SetScript("OnUpdate", function(self, elapsed)
     self.timeSinceLast = (self.timeSinceLast or 0) + elapsed
-    if self.timeSinceLast > 0.5 then -- check twice per second
+    if self.timeSinceLast > 0.5 then
         self.timeSinceLast = 0
 
-        -- Only track in Dun Morogh
         local continent = GetCurrentMapContinent()
-        if continent ~= DUN_MOROGH then return end
+        if continent ~= DUN_MOROGH then
+            if currentCheckpoint then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Exited checkpoint: "..currentCheckpoint)
+                currentCheckpoint = nil
+            end
+            return
+        end
 
         SetMapToCurrentZone()
         local x, y = GetPlayerMapPosition("player")
-        if x == 0 and y == 0 then return end -- out of map
-
+        if x == 0 and y == 0 then
+            if currentCheckpoint then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Exited checkpoint: "..currentCheckpoint)
+                currentCheckpoint = nil
+            end
+            return
+        end
         x, y = x*100, y*100
 
+        local inAnyCheckpoint = false
         for _, cp in ipairs(checkpoints) do
             local A, B, C = cp.points[1], cp.points[2], cp.points[3]
             if IsInsideTriangle(x, y, A[1], A[2], B[1], B[2], C[1], C[2]) then
-                if lastCheckpoint ~= cp.name then
+                inAnyCheckpoint = true
+                if currentCheckpoint ~= cp.name then
                     DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Entered checkpoint: "..cp.name)
-                    lastCheckpoint = cp.name
+                    currentCheckpoint = cp.name
                 end
-                return
+                break
             end
+        end
+
+        if not inAnyCheckpoint and currentCheckpoint then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Exited checkpoint: "..currentCheckpoint)
+            currentCheckpoint = nil
         end
     end
 end)
