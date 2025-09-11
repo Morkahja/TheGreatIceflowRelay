@@ -1,8 +1,7 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Rectangle-based checkpoint detection
+-- Rectangle-based checkpoint detection with debug commands
 
--- Rectangle checkpoints
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", minX = 31.3, maxX = 31.6, minY = 44.2, maxY = 44.9 },
     { name = "The Tree", minX = 32.3, maxX = 32.8, minY = 39.1, maxY = 39.2 },
@@ -14,9 +13,9 @@ local checkpoints = {
 local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
-local DEBUG = false
+local debugTick = false
 
--- Slash command /iceflow pos
+-- Slash commands
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
     local m = string.lower(msg or "")
@@ -25,17 +24,24 @@ SlashCmdList["ICEFLOW"] = function(msg)
         SetMapToCurrentZone()
         local x, y = GetPlayerMapPosition("player")
         if x == 0 and y == 0 then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable. Make sure you are in a zone map.")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
             return
         end
         x, y = x*100, y*100
         DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
+    elseif m == "tick" then
+        debugTick = not debugTick
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Debug tick %s", debugTick and "ON" or "OFF"))
+    elseif m == "checkpoints" then
+        for _, cp in ipairs(checkpoints) do
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
+        end
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos | tick | checkpoints")
     end
 end
 
--- OnUpdate frame for checkpoint detection
+-- OnUpdate for checkpoint detection
 local f = CreateFrame("Frame")
 f:SetScript("OnUpdate", function(_, elapsed)
     elapsed = elapsed or 0
@@ -43,9 +49,18 @@ f:SetScript("OnUpdate", function(_, elapsed)
     if updateTimer < 0.5 then return end
     updateTimer = 0
 
-    -- Force map internally
+    -- Force map
     SetMapZoom(0)
     SetMapToCurrentZone()
+
+    local x, y = GetPlayerMapPosition("player")
+    if x == 0 and y == 0 then return end
+    x, y = x*100, y*100
+
+    -- Debug tick
+    if debugTick then
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Tick: x=%.3f y=%.3f", x, y))
+    end
 
     -- Only track in Dun Morogh
     local continent = GetCurrentMapContinent()
@@ -55,14 +70,6 @@ f:SetScript("OnUpdate", function(_, elapsed)
             currentCheckpoint = nil
         end
         return
-    end
-
-    local x, y = GetPlayerMapPosition("player")
-    if x == 0 and y == 0 then return end
-    x, y = x*100, y*100
-
-    if DEBUG then
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("DEBUG: x=%.2f y=%.2f", x, y))
     end
 
     local insideCheckpoint = nil
