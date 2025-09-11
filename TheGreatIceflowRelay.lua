@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- Event-driven checkpoint detection with Iceflow shards and ball timer
+-- Event-driven checkpoint detection with Iceflow shard and ball timer system
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -9,7 +9,7 @@ TheGreatIceflowRelayFrame:Hide() -- hidden by default
 -- Rectangle checkpoints
 local checkpoints = {
     { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
-    { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.25 },
+    { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.25 }, -- 0.15 x 0.15 square
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
@@ -25,7 +25,7 @@ local visitedCheckpoints = {}
 local startTriggered = false
 local finishTriggered = false
 
--- Ball timer
+-- Ball tracking
 local hasBall = false
 local ballStartTime = 0
 local totalBallTime = 0
@@ -48,45 +48,16 @@ local function GetPlayerXY()
     return x * 100, y * 100
 end
 
--- Check for ball in inventory by name
-local function CheckBall()
-    local foundBall = false
-    for b = 0, NUM_BAG_SLOTS do
-        local slots = GetContainerNumSlots(b)
-        for s = 1, slots do
-            local _, itemName = GetContainerItemInfo(b, s)
-            if itemName and itemName == "Heavy Leather Ball" then
-                foundBall = true
-                break
-            end
-        end
-        if foundBall then break end
-    end
-
-    if foundBall then
-        if not hasBall then
-            hasBall = true
-            ballStartTime = GetTime()
-        end
-    else
-        if hasBall then
-            hasBall = false
-            totalBallTime = totalBallTime + (GetTime() - ballStartTime)
-            ballStartTime = 0
-        end
-    end
-end
-
--- Check if player is inside a checkpoint
+-- Checkpoints system
 local function CheckCheckpoint()
     local x, y = GetPlayerXY()
     if not x then return end
-
     local now = GetTime()
     if now - lastMessageTime < messageCooldown then return end
 
     local zone = GetZoneText()
     if zone ~= "Dun Morogh" then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Not in Dun Morogh (current: " .. zone .. ")")
         lastMessageTime = now
         return
     end
@@ -95,11 +66,13 @@ local function CheckCheckpoint()
         if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
             if cp.name == "Brewnall Village – Starting Stage" then
                 if not startTriggered then
+                    startTriggered = true
+                    finishTriggered = false
                     playerShards = 0
                     visitedCheckpoints = {}
                     totalBallTime = 0
-                    startTriggered = true
-                    finishTriggered = false
+                    hasBall = false
+                    ballStartTime = 0
                     RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
                 end
             elseif cp.name == "Brewnall Village – Finish Stage" then
@@ -120,11 +93,44 @@ local function CheckCheckpoint()
     end
 end
 
+-- Ball detection
+local function CheckBall()
+    local foundBall = false
+    for b = 0, NUM_BAG_SLOTS do
+        local slots = GetContainerNumSlots(b)
+        if slots then
+            for s = 1, slots do
+                local _, itemName = GetContainerItemInfo(b, s)
+                if itemName and itemName == "Heavy Leather Ball" then
+                    foundBall = true
+                    break
+                end
+            end
+        end
+        if foundBall then break end
+    end
+
+    if foundBall then
+        if not hasBall then
+            hasBall = true
+            ballStartTime = GetTime()
+            RelayMessage("I picked up the ball!")
+        end
+    else
+        if hasBall then
+            hasBall = false
+            totalBallTime = totalBallTime + (GetTime() - ballStartTime)
+            ballStartTime = 0
+            RelayMessage(string.format("I threw the ball! Held it for %.1f seconds", totalBallTime))
+        end
+    end
+end
+
 -- OnUpdate loop for tracking
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
     if running then
-        CheckBall()
         CheckCheckpoint()
+        CheckBall()
     end
 end)
 
@@ -138,12 +144,13 @@ SlashCmdList["ICEFLOW"] = function(msg)
             return
         end
         running = true
-        playerShards = 0
-        visitedCheckpoints = {}
         startTriggered = false
         finishTriggered = false
+        playerShards = 0
+        visitedCheckpoints = {}
         totalBallTime = 0
         hasBall = false
+        ballStartTime = 0
         lastMessageTime = 0
         TheGreatIceflowRelayFrame:Show()
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
