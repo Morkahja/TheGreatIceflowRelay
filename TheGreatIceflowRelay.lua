@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Tracks checkpoints in Dun Morogh and adds /iceflow pos command
+-- Uses barycentric coordinates for reliable checkpoint detection
 
 -- Checkpoints
 local checkpoints = {
@@ -11,49 +11,40 @@ local checkpoints = {
     { name = "Behind the Branch", points = {{34.7,45.7},{34.6,46.0},{34.5,46.0}} },
 }
 
--- Constants
 local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
 local DEBUG = false
-local BUFFER = 0.3 -- small buffer to help detection
 
--- Cross-product / same-side method
-local function Sign(px, py, x1, y1, x2, y2)
-    return (px - x2)*(y1 - y2) - (x1 - x2)*(py - y2)
-end
+-- Barycentric method
+local function IsInsideTriangleBarycentric(px, py, A, B, C)
+    local v0x, v0y = C[1]-A[1], C[2]-A[2]
+    local v1x, v1y = B[1]-A[1], B[2]-A[2]
+    local v2x, v2y = px-A[1], py-A[2]
 
-local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
-    local d1 = Sign(px, py, ax, ay, bx, by)
-    local d2 = Sign(px, py, bx, by, cx, cy)
-    local d3 = Sign(px, py, cx, cy, ax, ay)
-    local has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
-    local has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
-    return not (has_neg and has_pos)
-end
+    local dot00 = v0x*v0x + v0y*v0y
+    local dot01 = v0x*v1x + v0y*v1y
+    local dot02 = v0x*v2x + v0y*v2y
+    local dot11 = v1x*v1x + v1y*v1y
+    local dot12 = v1x*v2x + v1y*v2y
 
--- Adds buffer for slight rounding
-local function IsInsideTriangleWithBuffer(px, py, a, b, c)
-    for dx = -BUFFER, BUFFER, BUFFER/2 do
-        for dy = -BUFFER, BUFFER, BUFFER/2 do
-            if IsInsideTriangle(px+dx, py+dy, a[1], a[2], b[1], b[2], c[1], c[2]) then
-                return true
-            end
-        end
-    end
-    return false
+    local denom = dot00*dot11 - dot01*dot01
+    if denom == 0 then return false end  -- degenerate triangle
+
+    local u = (dot11*dot02 - dot01*dot12) / denom
+    local v = (dot00*dot12 - dot01*dot02) / denom
+
+    return (u >= 0) and (v >= 0) and (u+v <= 1)
 end
 
 -- Slash command /iceflow pos
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
-    local m = string.lower(msg or "")  -- safely handle nil and lowercase
+    local m = string.lower(msg or "")
 
     if m == "pos" then
-        -- Force map to current zone for reliable coords
         SetMapZoom(0)
         SetMapToCurrentZone()
-
         local x, y = GetPlayerMapPosition("player")
         if x == 0 and y == 0 then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable. Make sure you are in a zone map.")
@@ -65,7 +56,6 @@ SlashCmdList["ICEFLOW"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos")
     end
 end
-
 
 -- OnUpdate frame for checkpoint detection
 local f = CreateFrame("Frame")
@@ -99,8 +89,7 @@ f:SetScript("OnUpdate", function(_, elapsed)
 
     local insideCheckpoint = nil
     for _, cp in ipairs(checkpoints) do
-        local A, B, C = cp.points[1], cp.points[2], cp.points[3]
-        if IsInsideTriangleWithBuffer(x, y, A, B, C) then
+        if IsInsideTriangleBarycentric(x, y, cp.points[1], cp.points[2], cp.points[3]) then
             insideCheckpoint = cp.name
             break
         end
