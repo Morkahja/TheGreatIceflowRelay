@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Tracks checkpoints in Dun Morogh with buffer and prints enter/exit messages
+-- Forces the map internally to detect player coordinates in Dun Morogh
 
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", points = {{31.5,44.2},{31.6,44.8},{30.9,44.9}} },
@@ -14,7 +14,7 @@ local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
 local DEBUG = false  -- set true to print coordinates for testing
-local BUFFER = 0.3   -- buffer around triangle to compensate for rounding
+local BUFFER = 0.3   -- small buffer to account for rounding
 
 -- Cross-product / same-side method
 local function Sign(px, py, x1, y1, x2, y2)
@@ -32,7 +32,6 @@ local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     return not (has_neg and has_pos)
 end
 
--- Check if point is near triangle (adds buffer)
 local function IsInsideTriangleWithBuffer(px, py, a, b, c)
     for dx = -BUFFER, BUFFER, BUFFER/2 do
         for dy = -BUFFER, BUFFER, BUFFER/2 do
@@ -51,6 +50,10 @@ f:SetScript("OnUpdate", function(_, elapsed)
     if updateTimer < 0.5 then return end
     updateTimer = 0
 
+    -- Force the map internally to Dun Morogh
+    SetMapZoom(0)
+    SetMapToCurrentZone() -- must be called every tick for reliable coords
+
     -- Only track in Dun Morogh
     local continent = GetCurrentMapContinent()
     if continent ~= DUN_MOROGH then
@@ -61,9 +64,6 @@ f:SetScript("OnUpdate", function(_, elapsed)
         return
     end
 
-    -- Ensure map coordinates are valid
-    SetMapZoom(0)
-    SetMapToCurrentZone()
     local x, y = GetPlayerMapPosition("player")
     if x == 0 and y == 0 then return end
     x, y = x*100, y*100
