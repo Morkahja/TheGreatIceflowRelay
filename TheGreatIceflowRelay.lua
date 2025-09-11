@@ -1,7 +1,8 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Forces the map internally to detect player coordinates in Dun Morogh
+-- Tracks checkpoints in Dun Morogh and adds /iceflow pos command
 
+-- Checkpoints
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", points = {{31.5,44.2},{31.6,44.8},{30.9,44.9}} },
     { name = "The Tree", points = {{32.8,39.1},{32.3,39.2},{32.6,38.5}} },
@@ -10,11 +11,12 @@ local checkpoints = {
     { name = "Behind the Branch", points = {{34.7,45.7},{34.6,46.0},{34.5,46.0}} },
 }
 
+-- Constants
 local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
-local DEBUG = false  -- set true to print coordinates for testing
-local BUFFER = 0.3   -- small buffer to account for rounding
+local DEBUG = false
+local BUFFER = 0.3 -- small buffer to help detection
 
 -- Cross-product / same-side method
 local function Sign(px, py, x1, y1, x2, y2)
@@ -25,13 +27,12 @@ local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     local d1 = Sign(px, py, ax, ay, bx, by)
     local d2 = Sign(px, py, bx, by, cx, cy)
     local d3 = Sign(px, py, cx, cy, ax, ay)
-
     local has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
     local has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
-
     return not (has_neg and has_pos)
 end
 
+-- Adds buffer for slight rounding
 local function IsInsideTriangleWithBuffer(px, py, a, b, c)
     for dx = -BUFFER, BUFFER, BUFFER/2 do
         for dy = -BUFFER, BUFFER, BUFFER/2 do
@@ -43,6 +44,26 @@ local function IsInsideTriangleWithBuffer(px, py, a, b, c)
     return false
 end
 
+-- Slash command /iceflow pos
+SLASH_ICEFLOW1 = "/iceflow"
+SlashCmdList["ICEFLOW"] = function(msg)
+    msg = msg:lower()
+    if msg == "pos" then
+        SetMapZoom(0)
+        SetMapToCurrentZone()
+        local x, y = GetPlayerMapPosition("player")
+        if x == 0 and y == 0 then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable. Make sure you are in a zone map.")
+            return
+        end
+        x, y = x*100, y*100
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos")
+    end
+end
+
+-- OnUpdate frame for checkpoint detection
 local f = CreateFrame("Frame")
 f:SetScript("OnUpdate", function(_, elapsed)
     elapsed = elapsed or 0
@@ -50,9 +71,9 @@ f:SetScript("OnUpdate", function(_, elapsed)
     if updateTimer < 0.5 then return end
     updateTimer = 0
 
-    -- Force the map internally to Dun Morogh
+    -- Force map internally
     SetMapZoom(0)
-    SetMapToCurrentZone() -- must be called every tick for reliable coords
+    SetMapToCurrentZone()
 
     -- Only track in Dun Morogh
     local continent = GetCurrentMapContinent()
@@ -93,25 +114,3 @@ f:SetScript("OnUpdate", function(_, elapsed)
         end
     end
 end)
-
--- Slash command to show current player coordinates in Dun Morogh
-SLASH_ICEFLOW1 = "/iceflow"
-
-SlashCmdList["ICEFLOW"] = function(msg)
-    msg = msg:lower()
-    if msg == "pos" then
-        -- Force map to current zone for reliable coords
-        SetMapZoom(0)
-        SetMapToCurrentZone()
-
-        local x, y = GetPlayerMapPosition("player")
-        if x == 0 and y == 0 then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable. Make sure you are in a zone map.")
-            return
-        end
-        x, y = x*100, y*100
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
-    else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos")
-    end
-end
