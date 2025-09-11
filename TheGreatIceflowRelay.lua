@@ -27,13 +27,20 @@ local jumpsRequired = 5
 local lastZ = nil
 local jumpThreshold = 1.0 -- adjust if needed
 
--- Helper: get player position including Z
+-- Helper: get map-based X/Y and absolute Z
 local function GetPlayerXYZ()
+    -- Map-based X/Y
     SetMapZoom(0)
     SetMapToCurrentZone()
-    local x, y, z = UnitPosition("player") -- Turtle WoW API supports UnitPosition
-    if not x or not y or not z then return nil end
-    return x*100, y*100, z
+    local x, y = GetPlayerMapPosition("player")
+    if x == 0 and y == 0 then return nil end
+    x, y = x*100, y*100
+
+    -- Absolute Z for jump detection
+    local _, _, z = UnitPosition("player")
+    if not z then return nil end
+
+    return x, y, z
 end
 
 -- Check current position against checkpoints
@@ -96,7 +103,7 @@ TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit)
         return
     end
 
-    -- Normal event-driven tracking once running
+    -- Event-driven tracking once running
     if event == "PLAYER_STARTED_MOVING" then
         tracking = true
     elseif event == "PLAYER_STOPPED_MOVING" then
