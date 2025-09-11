@@ -1,6 +1,11 @@
+-- TheGreatIceflowRelay.lua
+-- Turtle WoW Lia 5.0 compatible
+-- Rectangle-based checkpoint detection with SafeOnUpdate
+
 -- Global frame to avoid garbage collection
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
 
+-- Checkpoints as rectangles
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", minX = 31.3, maxX = 31.6, minY = 44.2, maxY = 44.9 },
     { name = "The Tree", minX = 32.3, maxX = 32.8, minY = 39.1, maxY = 39.2 },
@@ -12,34 +17,21 @@ local checkpoints = {
 local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
+local elapsedTotal = 0
 local debugTick = false
 local running = false
-local elapsedTotal = 0
 local countdown = 10
 
--- Start countdown timer
-local function StartCountdown()
-    local cdTimer = 0
-    TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(_, elapsed)
-        cdTimer = cdTimer + elapsed
-        if cdTimer >= 1 and countdown > 0 then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Starting in %d...", countdown))
-            countdown = countdown - 1
-            cdTimer = 0
-        elseif countdown <= 0 then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay started!")
-            -- Start main detection
-            updateTimer = 0
-            elapsedTotal = 0
-            running = true
-            TheGreatIceflowRelayFrame:SetScript("OnUpdate", CheckpointOnUpdate)
-        end
-    end)
+-- Safe wrapper for OnUpdate functions
+local function SafeOnUpdate(func)
+    return function(_, elapsed)
+        elapsed = elapsed or 0
+        func(elapsed)
+    end
 end
 
--- Main detection function
-function CheckpointOnUpdate(_, elapsed)
-    elapsed = elapsed or 0
+-- Main checkpoint detection function
+local function CheckpointOnUpdate(elapsed)
     updateTimer = updateTimer + elapsed
     elapsedTotal = elapsedTotal + elapsed
 
@@ -66,7 +58,7 @@ function CheckpointOnUpdate(_, elapsed)
         DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Tick: x=%.3f y=%.3f", x, y))
     end
 
-    -- Only Dun Morogh
+    -- Only track in Dun Morogh
     if GetCurrentMapContinent() ~= DUN_MOROGH then
         if currentCheckpoint then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s exits checkpoint: %s", UnitName("player"), currentCheckpoint))
@@ -96,6 +88,26 @@ function CheckpointOnUpdate(_, elapsed)
     end
 end
 
+-- Countdown before starting detection
+local function StartCountdown()
+    countdown = 10
+    local cdTimer = 0
+    TheGreatIceflowRelayFrame:SetScript("OnUpdate", SafeOnUpdate(function(elapsed)
+        cdTimer = cdTimer + elapsed
+        if cdTimer >= 1 and countdown > 0 then
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Starting in %d...", countdown))
+            countdown = countdown - 1
+            cdTimer = 0
+        elseif countdown <= 0 then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay started!")
+            updateTimer = 0
+            elapsedTotal = 0
+            running = true
+            TheGreatIceflowRelayFrame:SetScript("OnUpdate", SafeOnUpdate(CheckpointOnUpdate))
+        end
+    end))
+end
+
 -- Slash commands
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
@@ -104,7 +116,6 @@ SlashCmdList["ICEFLOW"] = function(msg)
         if running then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Already running!")
         else
-            countdown = 10
             StartCountdown()
         end
     elseif m == "end" then
