@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Event-driven checkpoint detection with 3-second message cooldown
+-- Event-driven checkpoint detection for Iceflow Lake with 3-second message cooldown
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -15,7 +15,9 @@ local checkpoints = {
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
 }
 
-local DUN_MOROGH = 1
+-- Iceflow Lake AreaID — replace with actual number from /run DEFAULT_CHAT_FRAME:AddMessage(GetCurrentMapAreaID())
+local ICEFLOW_LAKE_AREAID = 1234  
+
 local running = false
 local debugTick = false
 local lastMessageTime = 0
@@ -38,8 +40,8 @@ local function CheckCheckpoint()
     local now = GetTime()
     if now - lastMessageTime < messageCooldown then return end
 
-    if GetCurrentMapContinent() ~= DUN_MOROGH then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in Dun Morogh")
+    if GetCurrentMapAreaID() ~= ICEFLOW_LAKE_AREAID then
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in Iceflow Lake")
         lastMessageTime = now
         return
     end
