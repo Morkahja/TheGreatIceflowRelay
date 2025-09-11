@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Tracks checkpoints in Dun Morogh and prints enter/exit messages
+-- Tracks checkpoints in Dun Morogh with buffer and prints enter/exit messages
 
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", points = {{31.5,44.2},{31.6,44.8},{30.9,44.9}} },
@@ -14,8 +14,9 @@ local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
 local DEBUG = false  -- set true to print coordinates for testing
+local BUFFER = 0.3   -- buffer around triangle to compensate for rounding
 
--- Utility: same-side / cross-product method
+-- Cross-product / same-side method
 local function Sign(px, py, x1, y1, x2, y2)
     return (px - x2)*(y1 - y2) - (x1 - x2)*(py - y2)
 end
@@ -29,6 +30,18 @@ local function IsInsideTriangle(px, py, ax, ay, bx, by, cx, cy)
     local has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
 
     return not (has_neg and has_pos)
+end
+
+-- Check if point is near triangle (adds buffer)
+local function IsInsideTriangleWithBuffer(px, py, a, b, c)
+    for dx = -BUFFER, BUFFER, BUFFER/2 do
+        for dy = -BUFFER, BUFFER, BUFFER/2 do
+            if IsInsideTriangle(px+dx, py+dy, a[1], a[2], b[1], b[2], c[1], c[2]) then
+                return true
+            end
+        end
+    end
+    return false
 end
 
 local f = CreateFrame("Frame")
@@ -56,13 +69,13 @@ f:SetScript("OnUpdate", function(_, elapsed)
     x, y = x*100, y*100
 
     if DEBUG then
-        DEFAULT_CHAT_FRAME:AddMessage(string.format("DEBUG: x=%.1f y=%.1f", x, y))
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("DEBUG: x=%.2f y=%.2f", x, y))
     end
 
     local insideCheckpoint = nil
     for _, cp in ipairs(checkpoints) do
         local A, B, C = cp.points[1], cp.points[2], cp.points[3]
-        if IsInsideTriangle(x, y, A[1], A[2], B[1], B[2], C[1], C[2]) then
+        if IsInsideTriangleWithBuffer(x, y, A, B, C) then
             insideCheckpoint = cp.name
             break
         end
