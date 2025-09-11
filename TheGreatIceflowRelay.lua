@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Event-driven checkpoint detection with jump-to-start
+-- Event-driven checkpoint detection with jump-to-start via Z-axis
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -24,20 +24,21 @@ local debugTick = false
 -- Jump-to-start variables
 local jumps = 0
 local jumpsRequired = 5
-local readyToStart = false
+local lastZ = nil
+local jumpThreshold = 1.0 -- adjust if needed
 
--- Helper: get player position
-local function GetPlayerXY()
+-- Helper: get player position including Z
+local function GetPlayerXYZ()
     SetMapZoom(0)
     SetMapToCurrentZone()
-    local x, y = GetPlayerMapPosition("player")
-    if x == 0 and y == 0 then return nil end
-    return x*100, y*100
+    local x, y, z = UnitPosition("player") -- Turtle WoW API supports UnitPosition
+    if not x or not y or not z then return nil end
+    return x*100, y*100, z
 end
 
 -- Check current position against checkpoints
 local function CheckCheckpoint()
-    local x, y = GetPlayerXY()
+    local x, y = GetPlayerXYZ()
     if not x then return end
 
     if GetCurrentMapContinent() ~= DUN_MOROGH then
@@ -75,23 +76,23 @@ end
 TheGreatIceflowRelayFrame:RegisterEvent("PLAYER_STARTED_MOVING")
 TheGreatIceflowRelayFrame:RegisterEvent("PLAYER_STOPPED_MOVING")
 TheGreatIceflowRelayFrame:RegisterEvent("UNIT_POSITION_CHANGED")
-TheGreatIceflowRelayFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED") -- detect jumps
 
-TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit, _, spellID)
+TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit)
+    local x, y, z = GetPlayerXYZ()
+    if not x then return end
+
     if not running then
-        -- Jump-to-start logic
-        if event == "UNIT_SPELLCAST_SUCCEEDED" and unit == "player" then
-            -- spellID 522 is usually Jump; adjust if different in Turtle WoW
-            if spellID == 522 then
-                jumps = jumps + 1
-                DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Jump %d/%d", jumps, jumpsRequired))
-                if jumps > jumpsRequired then
-                    running = true
-                    tracking = IsPlayerMoving() or false
-                    DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r READY — GO!")
-                end
+        -- Jump-to-start detection via Z-axis
+        if lastZ and (z - lastZ) > jumpThreshold then
+            jumps = jumps + 1
+            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Jump %d/%d", jumps, jumpsRequired))
+            if jumps > jumpsRequired then
+                running = true
+                tracking = IsPlayerMoving() or false
+                DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r READY — GO!")
             end
         end
+        lastZ = z
         return
     end
 
@@ -105,6 +106,7 @@ TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, unit, _, sp
             CheckCheckpoint()
         end
     end
+    lastZ = z
 end)
 
 -- Slash commands
@@ -117,6 +119,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
             return
         end
         jumps = 0
+        lastZ = nil
         running = false
         tracking = false
         TheGreatIceflowRelayFrame:Show()
@@ -127,13 +130,14 @@ SlashCmdList["ICEFLOW"] = function(msg)
             tracking = false
             currentCheckpoint = nil
             jumps = 0
+            lastZ = nil
             TheGreatIceflowRelayFrame:Hide()
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped.")
         else
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay is not running.")
         end
     elseif m == "pos" then
-        local x, y = GetPlayerXY()
+        local x, y = GetPlayerXYZ()
         if not x then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
         else
@@ -147,7 +151,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
             DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
         end
     elseif m == "check" then
-        local x, y = GetPlayerXY()
+        local x, y = GetPlayerXYZ()
         if not x then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
             return
