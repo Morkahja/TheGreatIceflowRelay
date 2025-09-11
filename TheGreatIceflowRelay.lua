@@ -28,7 +28,7 @@ local finishTriggered = false
 -- Ball timer state
 local hasBall = false
 local ballStartTime = 0
-local ballTotalTime = 0
+local totalBallTime = 0
 
 -- Helper: send message to group if in party, else to chat
 local function RelayMessage(msg)
@@ -46,35 +46,6 @@ local function GetPlayerXY()
     local x, y = GetPlayerMapPosition("player")
     if not x or not y or (x == 0 and y == 0) then return nil end
     return x * 100, y * 100
-end
-
--- Ball detection and timer
-local function CheckBallInInventory()
-    local foundBall = false
-    for b = 0, NUM_BAG_SLOTS do
-        local slots = GetContainerNumSlots(b)
-        for s = 1, slots do
-            local link = GetContainerItemLink(b, s)
-            if link and string.find(link, "Heavy Leather Ball") then
-                foundBall = true
-                break
-            end
-        end
-        if foundBall then break end
-    end
-
-    -- Ball received
-    if foundBall and not hasBall then
-        hasBall = true
-        ballStartTime = GetTime()
-        RelayMessage("I received the Heavy Leather Ball. Timer started.")
-    -- Ball thrown / removed
-    elseif not foundBall and hasBall then
-        hasBall = false
-        local elapsed = GetTime() - ballStartTime
-        ballTotalTime = ballTotalTime + elapsed
-        RelayMessage(string.format("I threw the Heavy Leather Ball. Held it for %.2f seconds. Total: %.2f", elapsed, ballTotalTime))
-    end
 end
 
 -- Check if player is inside a checkpoint
@@ -101,18 +72,16 @@ local function CheckCheckpoint()
                 if not startTriggered then
                     playerShards = 0
                     visitedCheckpoints = {}
-                    ballTotalTime = 0
-                    hasBall = false
-                    startTriggered = true
-                    finishTriggered = false
                     RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
+                    startTriggered = true
                 end
+                finishTriggered = false
             elseif cp.name == "Brewnall Village – Finish Stage" then
                 if not finishTriggered then
+                    RelayMessage(string.format("I finished the relay with %d Iceflow shards! Total time holding ball: %.1f seconds", playerShards, totalBallTime))
                     finishTriggered = true
-                    startTriggered = false
-                    RelayMessage(string.format("I finished the relay with %d Iceflow shards! Total ball hold time: %.2f seconds", playerShards, ballTotalTime))
                 end
+                startTriggered = false
             else
                 if not visitedCheckpoints[cp.name] then
                     visitedCheckpoints[cp.name] = true
@@ -125,20 +94,50 @@ local function CheckCheckpoint()
         end
     end
 
-    -- Reset start/finish flags if leaving their areas
     if not insideAnyCheckpoint then
         startTriggered = false
         finishTriggered = false
     end
 end
 
--- OnUpdate loop for tracking every 2 seconds
-local elapsedAccumulator = 0
-TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
+-- Ball detection function
+local function CheckBallInInventory()
+    local foundBall = false
+    for b = 0, NUM_BAG_SLOTS do
+        local slots = GetContainerNumSlots(b)
+        for s = 1, slots do
+            local link = GetContainerItemLink(b, s)
+            if link and string.find(link, "Heavy Leather Ball") then
+                foundBall = true
+                break
+            end
+        end
+        if foundBall then break end
+    end
+
+    -- Ball timer logic
+    if foundBall then
+        if not hasBall then
+            hasBall = true
+            ballStartTime = GetTime()
+            RelayMessage("I received a Heavy Leather Ball!")
+        end
+    else
+        if hasBall then
+            hasBall = false
+            totalBallTime = totalBallTime + (GetTime() - ballStartTime)
+            RelayMessage("I threw the Heavy Leather Ball!")
+        end
+    end
+end
+
+-- OnUpdate loop for tracking (2-second interval)
+local lastUpdateTime = 0
+TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
     if running then
-        elapsedAccumulator = elapsedAccumulator + elapsed
-        if elapsedAccumulator >= 2 then
-            elapsedAccumulator = 0
+        local now = GetTime()
+        if now - lastUpdateTime >= 2 then
+            lastUpdateTime = now
             CheckCheckpoint()
             CheckBallInInventory()
         end
@@ -161,8 +160,8 @@ SlashCmdList["ICEFLOW"] = function(msg)
         startTriggered = false
         finishTriggered = false
         hasBall = false
-        ballTotalTime = 0
-        elapsedAccumulator = 0
+        ballStartTime = 0
+        totalBallTime = 0
         TheGreatIceflowRelayFrame:Show()
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
     elseif m == "end" then
