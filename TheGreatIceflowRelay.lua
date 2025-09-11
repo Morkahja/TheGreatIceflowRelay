@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- Event-driven checkpoint detection with Iceflow shard system and ball timer
+-- Event-driven checkpoint detection with Iceflow shard system and live Heavy Leather Ball detection
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -25,7 +25,7 @@ local visitedCheckpoints = {}
 local startTriggered = false
 local finishTriggered = false
 
--- Ball timer state
+-- Ball tracking
 local hasBall = false
 local ballStartTime = 0
 local totalBallTime = 0
@@ -48,7 +48,7 @@ local function GetPlayerXY()
     return x * 100, y * 100
 end
 
--- Check if player is inside a checkpoint
+-- Check for checkpoints and manage shards
 local function CheckCheckpoint()
     local x, y = GetPlayerXY()
     if not x then return end
@@ -78,7 +78,7 @@ local function CheckCheckpoint()
                 finishTriggered = false
             elseif cp.name == "Brewnall Village – Finish Stage" then
                 if not finishTriggered then
-                    RelayMessage(string.format("I finished the relay with %d Iceflow shards! Total time holding ball: %.1f seconds", playerShards, totalBallTime))
+                    RelayMessage(string.format("I finished the relay with %d Iceflow shards! Total time holding balls: %.1f sec", playerShards, totalBallTime))
                     finishTriggered = true
                 end
                 startTriggered = false
@@ -94,13 +94,14 @@ local function CheckCheckpoint()
         end
     end
 
+    -- Reset start/finish flags if leaving their areas
     if not insideAnyCheckpoint then
         startTriggered = false
         finishTriggered = false
     end
 end
 
--- Ball detection function
+-- Check if player has a Heavy Leather Ball
 local function CheckBallInInventory()
     local foundBall = false
     for b = 0, NUM_BAG_SLOTS do
@@ -115,12 +116,14 @@ local function CheckBallInInventory()
         if foundBall then break end
     end
 
-    -- Ball timer logic
     if foundBall then
         if not hasBall then
             hasBall = true
             ballStartTime = GetTime()
             RelayMessage("I received a Heavy Leather Ball!")
+        else
+            -- Live debug message every 2 seconds
+            RelayMessage("You currently have the Heavy Leather Ball!")
         end
     else
         if hasBall then
@@ -131,16 +134,11 @@ local function CheckBallInInventory()
     end
 end
 
--- OnUpdate loop for tracking (2-second interval)
-local lastUpdateTime = 0
-TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
+-- OnUpdate loop for tracking
+TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
     if running then
-        local now = GetTime()
-        if now - lastUpdateTime >= 2 then
-            lastUpdateTime = now
-            CheckCheckpoint()
-            CheckBallInInventory()
-        end
+        CheckCheckpoint()
+        CheckBallInInventory()
     end
 end)
 
