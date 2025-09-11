@@ -128,25 +128,23 @@ SlashCmdList["ICEFLOW"] = function(msg)
 end
 
 ---------------------------------------------------------
--- Ball detection frame for Turtle WoW 5.0
+-- Ball detection frame for Turtle WoW 5.0 (item name check)
 ---------------------------------------------------------
 
 local BallTrackerFrame = CreateFrame("Frame")
 BallTrackerFrame:RegisterEvent("BAG_UPDATE")
 
 BallTrackerFrame:SetScript("OnEvent", function(self, event, bagID)
-    local itemIDToCheck = 21229 -- Heavy Leather Ball ID in Turtle WoW
+    local ballName = "Heavy Leather Ball" -- exact item name in Turtle WoW
 
     for bag = 0, NUM_BAG_SLOTS do
         local slots = GetContainerNumSlots(bag)
         for slot = 1, slots do
-            local link = GetContainerItemLink(bag, slot)
-            if link then
-                local itemID = tonumber(link:match("item:(%d+)"))
-                if itemID == itemIDToCheck then
-                    DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r You received the Heavy Leather Ball!")
-                    return -- optional: stop after first detection to avoid spam
-                end
+            local info = {GetContainerItemInfo(bag, slot)}
+            local name = info[1]
+            if name and name == ballName then
+                DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r You received the Heavy Leather Ball!")
+                return -- stop after first detection
             end
         end
     end
