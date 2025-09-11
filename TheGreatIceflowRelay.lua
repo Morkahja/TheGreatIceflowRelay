@@ -93,3 +93,25 @@ f:SetScript("OnUpdate", function(_, elapsed)
         end
     end
 end)
+
+-- Slash command to show current player coordinates in Dun Morogh
+SLASH_ICEFLOW1 = "/iceflow"
+
+SlashCmdList["ICEFLOW"] = function(msg)
+    msg = msg:lower()
+    if msg == "pos" then
+        -- Force map to current zone for reliable coords
+        SetMapZoom(0)
+        SetMapToCurrentZone()
+
+        local x, y = GetPlayerMapPosition("player")
+        if x == 0 and y == 0 then
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable. Make sure you are in a zone map.")
+            return
+        end
+        x, y = x*100, y*100
+        DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
+    else
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow pos")
+    end
+end
