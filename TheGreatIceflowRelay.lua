@@ -12,7 +12,7 @@ local checkpoints = {
     { name = "The Tree", minX = 32.3, maxX = 32.8, minY = 39.1, maxY = 39.2 },
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
-    { name = "Behind the Branch", minX = 34.6, maxX = 34.7, minY = 45.7, maxY = 46.0 },
+    { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
 }
 
 local DUN_MOROGH = 1
