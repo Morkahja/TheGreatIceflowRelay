@@ -1,142 +1,101 @@
 -- TheGreatIceflowRelay.lua
--- Turtle WoW Lua 5.0 compatible
--- Event-driven checkpoint detection with Iceflow shard system
+-- Turtle WoW Addon: The Great Iceflow Relay
 
--- Global frame
-TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
-TheGreatIceflowRelayFrame:Hide() -- hidden by default
+local relayFrame = CreateFrame("Frame")
+relayFrame:RegisterEvent("PLAYER_STARTED_MOVING")
+relayFrame:RegisterEvent("PLAYER_STOPPED_MOVING")
+relayFrame:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 
--- Rectangle checkpoints
-local checkpoints = {
-    { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
-    { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.25 }, -- 0.15 x 0.15 square
-    { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
-    { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
-    { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
-    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.7, maxY = 44.9 },
+-- Saved state
+local relayState = {
+    running = false,
+    shards = 0,
+    visited = {},
+    insideCheckpoint = nil, -- Track current checkpoint to avoid repeats
 }
 
--- State
-local running = false
-local lastMessageTime = 0
-local messageCooldown = 2 -- seconds
-local playerShards = 0
-local visitedCheckpoints = {}
-
--- Helper: send message to group if in party, else to chat
+-- Helper: Send message to group if in party, else print
 local function RelayMessage(msg)
     if GetNumPartyMembers() > 0 then
         SendChatMessage("[Iceflow Relay] " .. msg, "PARTY")
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r " .. msg)
+        DEFAULT_CHAT_FRAME:AddMessage("[Iceflow Relay] " .. msg)
     end
 end
 
--- Helper: get validated player position
-local function GetPlayerXY()
-    SetMapZoom(0)
-    SetMapToCurrentZone()
+-- Define checkpoints
+local checkpoints = {
+    { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5, type = "start" },
+    { name = "The Tree", minX = 32.5, maxX = 32.8, minY = 38.9, maxY = 39.2, type = "checkpoint" },
+    { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1, type = "checkpoint" },
+    { name = "Wet Log", minX = 36.0, maxX = 36.1, minY = 40.5, maxY = 40.8, type = "checkpoint" },
+    { name = "Behind the Branch", minX = 34.5, maxX = 34.7, minY = 45.7, maxY = 46.0, type = "checkpoint" },
+    { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.7, maxY = 44.9, type = "finish" },
+}
+
+-- Check if player is inside rectangle
+local function IsInArea(x, y, area)
+    return x >= area.minX and x <= area.maxX and y >= area.minY and y <= area.maxY
+end
+
+-- Main logic
+local function CheckPlayerPosition()
     local x, y = GetPlayerMapPosition("player")
-    if not x or not y or (x == 0 and y == 0) then return nil end
-    return x * 100, y * 100
-end
+    if not x or not y then return end
+    x, y = x * 100, y * 100
 
--- Check if player is inside a checkpoint
-local function CheckCheckpoint()
-    local x, y = GetPlayerXY()
-    if not x then return end
+    local insideNow = nil
 
-    local now = GetTime()
-    if now - lastMessageTime < messageCooldown then return end
+    for _, checkpoint in ipairs(checkpoints) do
+        if IsInArea(x, y, checkpoint) then
+            insideNow = checkpoint.name
 
-    local zone = GetZoneText()
-    if zone ~= "Dun Morogh" then
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Not in Dun Morogh (current: " .. zone .. ")")
-        lastMessageTime = now
-        return
-    end
+            -- Only trigger when entering a new checkpoint
+            if relayState.insideCheckpoint ~= checkpoint.name then
+                relayState.insideCheckpoint = checkpoint.name
 
-    for _, cp in ipairs(checkpoints) do
-        if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-            if cp.name == "Brewnall Village – Starting Stage" then
-                playerShards = 0
-                visitedCheckpoints = {}
-                RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
-            elseif cp.name == "Brewnall Village – Finish Stage" then
-                RelayMessage(string.format("I finished the relay with %d Iceflow shards!", playerShards))
-            else
-                if not visitedCheckpoints[cp.name] then
-                    visitedCheckpoints[cp.name] = true
-                    playerShards = playerShards + 1
-                    RelayMessage(string.format("I arrived at \"%s\" and collected 1 Iceflow shard. Total: %d", cp.name, playerShards))
+                if checkpoint.type == "start" then
+                    relayState.shards = 0
+                    relayState.visited = {}
+                    RelayMessage("I am at the Starting Stage! My Iceflow shard counter has been reset.")
+                elseif checkpoint.type == "checkpoint" and not relayState.visited[checkpoint.name] then
+                    relayState.shards = relayState.shards + 1
+                    relayState.visited[checkpoint.name] = true
+                    RelayMessage("I arrived at \"" .. checkpoint.name .. "\" and collected 1 Iceflow shard.")
+                elseif checkpoint.type == "finish" then
+                    RelayMessage("I reached the Finish Stage with " .. relayState.shards .. " Iceflow shards collected!")
                 end
             end
-            lastMessageTime = now
-            return
+            break
         end
+    end
+
+    -- If not in any checkpoint area, reset tracker so re-entry can trigger again
+    if not insideNow then
+        relayState.insideCheckpoint = nil
     end
 end
 
--- OnUpdate loop for tracking
-TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
-    if running then
-        CheckCheckpoint()
+-- Event handler
+relayFrame:SetScript("OnEvent", function(self, event)
+    if event == "PLAYER_STARTED_MOVING" or event == "PLAYER_STOPPED_MOVING" then
+        CheckPlayerPosition()
+    elseif event == "ZONE_CHANGED_NEW_AREA" then
+        SetMapToCurrentZone()
     end
 end)
 
--- Slash commands
+-- Slash command
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
-    local m = string.lower(msg or "")
-    if m == "start" then
-        if running then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Already running!")
-            return
-        end
-        running = true
-        playerShards = 0
-        visitedCheckpoints = {}
-        lastMessageTime = 0
-        TheGreatIceflowRelayFrame:Show()
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
-    elseif m == "end" then
-        if running then
-            running = false
-            TheGreatIceflowRelayFrame:Hide()
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay stopped.")
-        else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay is not running.")
-        end
-    elseif m == "pos" then
-        local x, y = GetPlayerXY()
-        if not x then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
-        else
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Current Position: x=%.2f y=%.2f", x, y))
-        end
-    elseif m == "check" then
-        local x, y = GetPlayerXY()
-        if not x then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Position unavailable.")
-            return
-        end
-        local insideCheckpoint = nil
-        for _, cp in ipairs(checkpoints) do
-            if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-                insideCheckpoint = cp.name
-                break
-            end
-        end
-        if insideCheckpoint then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Player is in checkpoint: %s", insideCheckpoint))
-        else
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Player is not in any checkpoint")
-        end
-    elseif m == "checkpoints" then
-        for _, cp in ipairs(checkpoints) do
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
-        end
+    if msg == "start" then
+        relayState.running = true
+        RelayMessage("Relay started. Move to checkpoints to collect Iceflow shards!")
+    elseif msg == "stop" then
+        relayState.running = false
+        RelayMessage("Relay stopped.")
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/Iceflow start|r - Begin the relay")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00/Iceflow stop|r - End the relay")
     end
 end
