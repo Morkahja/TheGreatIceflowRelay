@@ -1,6 +1,7 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
 -- Event-driven checkpoint detection with 3-second message cooldown
+-- Added Heavy Leather Ball throw tracking with teammate distance penalty
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -19,7 +20,11 @@ local DUN_MOROGH_NAME = "Dun Morogh"  -- internal zone check
 local running = false
 local debugTick = false
 local lastMessageTime = 0
-local messageCooldown = 2 -- seconds
+local messageCooldown = 3 -- seconds
+
+-- Ball throw tracking
+local MIN_DISTANCE = 28
+local throwCount = {}
 
 -- Helper: get validated player position
 local function GetPlayerXY()
@@ -62,10 +67,35 @@ local function CheckCheckpoint()
     lastMessageTime = now
 end
 
--- OnUpdate loop for tracking
+-- OnUpdate loop for checkpoint tracking
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
     if running then
         CheckCheckpoint()
+    end
+end)
+
+-- Event handling for ball throws
+TheGreatIceflowRelayFrame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+TheGreatIceflowRelayFrame:SetScript("OnEvent", function(self, event, ...)
+    if not running then return end
+
+    if event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local unit, castGUID, spellID = ...
+        -- 23135 = Heavy Leather Ball (replace if different in Turtle WoW)
+        if spellID == 23135 then
+            throwCount[unit] = (throwCount[unit] or 0) + 1
+            DEFAULT_CHAT_FRAME:AddMessage(unit .. " threw the Heavy Leather Ball! (Total: " .. throwCount[unit] .. ")")
+
+            -- Check all party members for 28-yard proximity
+            for i = 1, GetNumGroupMembers()-1 do
+                local partyUnit = "party"..i
+                if UnitExists(partyUnit) and partyUnit ~= unit then
+                    if CheckInteractDistance(partyUnit, 3) then -- 3 ~= 28 yards
+                        DEFAULT_CHAT_FRAME:AddMessage(partyUnit .. " is too close! Penalty applied!")
+                    end
+                end
+            end
+        end
     end
 end)
 
