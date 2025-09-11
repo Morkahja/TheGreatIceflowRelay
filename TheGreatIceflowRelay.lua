@@ -1,6 +1,6 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- Event-driven checkpoint detection with Iceflow shard and ball timer system
+-- Event-driven checkpoint detection with Iceflow shard system and ball timer
 
 -- Global frame
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
@@ -9,7 +9,7 @@ TheGreatIceflowRelayFrame:Hide() -- hidden by default
 -- Rectangle checkpoints
 local checkpoints = {
     { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
-    { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.25 }, -- 0.15 x 0.15 square
+    { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.4 }, -- 0.3 x 0.3 square
     { name = "Carcass Island", minX = 34.1, maxX = 34.4, minY = 41.8, maxY = 42.1 },
     { name = "Wet Log", minX = 36.0, maxX = 36.2, minY = 40.5, maxY = 40.8 },
     { name = "Behind the Branch", minX = 34.5, maxX = 35.0, minY = 45.5, maxY = 46.0 },
@@ -22,11 +22,11 @@ local lastMessageTime = 0
 local messageCooldown = 2 -- seconds
 local playerShards = 0
 local visitedCheckpoints = {}
-local startTriggered = false
-local finishTriggered = false
+local startPrinted = false
+local finishPrinted = false
 
--- Ball tracking
-local hasBall = false
+-- Ball timer state
+local ballTimerRunning = false
 local ballStartTime = 0
 local totalBallTime = 0
 
@@ -48,7 +48,21 @@ local function GetPlayerXY()
     return x * 100, y * 100
 end
 
--- Checkpoints system
+-- Ball detection helper
+local function HasBall()
+    for b = 0, NUM_BAG_SLOTS do
+        local slots = GetContainerNumSlots(b)
+        for s = 1, slots do
+            local link = GetContainerItemLink(b, s)
+            if link and string.find(link, "Heavy Leather Ball") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Checkpoint handling
 local function CheckCheckpoint()
     local x, y = GetPlayerXY()
     if not x then return end
@@ -64,23 +78,20 @@ local function CheckCheckpoint()
 
     for _, cp in ipairs(checkpoints) do
         if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-            if cp.name == "Brewnall Village – Starting Stage" then
-                if not startTriggered then
-                    startTriggered = true
-                    finishTriggered = false
-                    playerShards = 0
-                    visitedCheckpoints = {}
-                    totalBallTime = 0
-                    hasBall = false
-                    ballStartTime = 0
-                    RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
-                end
-            elseif cp.name == "Brewnall Village – Finish Stage" then
-                if not finishTriggered then
-                    finishTriggered = true
-                    RelayMessage(string.format("I finished the relay with %d Iceflow shards! Total ball time: %.1f seconds", playerShards, totalBallTime))
-                end
-            else
+            -- Start stage
+            if cp.name == "Brewnall Village – Starting Stage" and not startPrinted then
+                playerShards = 0
+                visitedCheckpoints = {}
+                startPrinted = true
+                finishPrinted = false
+                totalBallTime = 0
+                RelayMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
+            -- Finish stage
+            elseif cp.name == "Brewnall Village – Finish Stage" and not finishPrinted then
+                finishPrinted = true
+                RelayMessage(string.format("I finished the relay with %d Iceflow shards and %.1f seconds holding the ball!", playerShards, totalBallTime))
+            -- Other checkpoints
+            elseif cp.name ~= "Brewnall Village – Starting Stage" and cp.name ~= "Brewnall Village – Finish Stage" then
                 if not visitedCheckpoints[cp.name] then
                     visitedCheckpoints[cp.name] = true
                     playerShards = playerShards + 1
@@ -93,35 +104,19 @@ local function CheckCheckpoint()
     end
 end
 
--- Ball detection
-local function CheckBall()
-    local foundBall = false
-    for b = 0, NUM_BAG_SLOTS do
-        local slots = GetContainerNumSlots(b)
-        if slots then
-            for s = 1, slots do
-                local _, itemName = GetContainerItemInfo(b, s)
-                if itemName and itemName == "Heavy Leather Ball" then
-                    foundBall = true
-                    break
-                end
-            end
-        end
-        if foundBall then break end
-    end
-
-    if foundBall then
-        if not hasBall then
-            hasBall = true
+-- Ball timer handling
+local function UpdateBallTimer()
+    if HasBall() then
+        if not ballTimerRunning then
             ballStartTime = GetTime()
-            RelayMessage("I picked up the ball!")
+            ballTimerRunning = true
+            -- optional: RelayMessage("Ball timer started!")
         end
     else
-        if hasBall then
-            hasBall = false
+        if ballTimerRunning then
             totalBallTime = totalBallTime + (GetTime() - ballStartTime)
-            ballStartTime = 0
-            RelayMessage(string.format("I threw the ball! Held it for %.1f seconds", totalBallTime))
+            ballTimerRunning = false
+            -- optional: RelayMessage("Ball timer stopped!")
         end
     end
 end
@@ -130,7 +125,7 @@ end
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function(self, elapsed)
     if running then
         CheckCheckpoint()
-        CheckBall()
+        UpdateBallTimer()
     end
 end)
 
@@ -144,20 +139,24 @@ SlashCmdList["ICEFLOW"] = function(msg)
             return
         end
         running = true
-        startTriggered = false
-        finishTriggered = false
         playerShards = 0
         visitedCheckpoints = {}
-        totalBallTime = 0
-        hasBall = false
-        ballStartTime = 0
+        startPrinted = false
+        finishPrinted = false
         lastMessageTime = 0
+        totalBallTime = 0
+        ballTimerRunning = false
         TheGreatIceflowRelayFrame:Show()
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay started. Move around to track checkpoints.")
     elseif m == "end" then
         if running then
             running = false
             TheGreatIceflowRelayFrame:Hide()
+            -- stop ball timer if still running
+            if ballTimerRunning then
+                totalBallTime = totalBallTime + (GetTime() - ballStartTime)
+                ballTimerRunning = false
+            end
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Iceflow Relay stopped.")
         else
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay is not running.")
@@ -191,7 +190,13 @@ SlashCmdList["ICEFLOW"] = function(msg)
         for _, cp in ipairs(checkpoints) do
             DEFAULT_CHAT_FRAME:AddMessage(string.format("%s: minX=%.2f maxX=%.2f minY=%.2f maxY=%.2f", cp.name, cp.minX, cp.maxX, cp.minY, cp.maxY))
         end
+    elseif m == "ballcheck" then
+        if HasBall() then
+            RelayMessage("I currently have a Heavy Leather Ball in my inventory!")
+        else
+            RelayMessage("I do NOT have a Heavy Leather Ball in my inventory.")
+        end
     else
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints | ballcheck")
     end
 end
