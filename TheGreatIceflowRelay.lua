@@ -1,11 +1,11 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lia 5.0 compatible
--- Rectangle-based checkpoint detection with SafeOnUpdate
+-- Rectangle-based checkpoint detection
 
--- Global frame to avoid garbage collection
+-- Global frame so Lua doesn't garbage collect it
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
 
--- Checkpoints as rectangles
+-- Rectangle checkpoints
 local checkpoints = {
     { name = "Brewnall Village – Landing Stage", minX = 31.3, maxX = 31.6, minY = 44.2, maxY = 44.9 },
     { name = "The Tree", minX = 32.3, maxX = 32.8, minY = 39.1, maxY = 39.2 },
@@ -17,36 +17,23 @@ local checkpoints = {
 local DUN_MOROGH = 1
 local currentCheckpoint = nil
 local updateTimer = 0
-local elapsedTotal = 0
 local debugTick = false
 local running = false
-local countdown = 10
 
--- Safe wrapper for OnUpdate functions
+-- Safe wrapper to ensure elapsed is never nil
 local function SafeOnUpdate(func)
     return function(_, elapsed)
-        elapsed = elapsed or 0
-        func(elapsed)
+        func(elapsed or 0)
     end
 end
 
--- Main checkpoint detection function
+-- Main checkpoint detection
 local function CheckpointOnUpdate(elapsed)
     updateTimer = updateTimer + elapsed
-    elapsedTotal = elapsedTotal + elapsed
-
-    -- Auto stop after 3 hours
-    if elapsedTotal >= 3*60*60 then
-        running = false
-        TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
-        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped automatically after 3 hours.")
-        return
-    end
-
     if updateTimer < 0.5 then return end
     updateTimer = 0
 
-    -- Force map
+    -- Force map for coordinates
     SetMapZoom(0)
     SetMapToCurrentZone()
 
@@ -54,6 +41,7 @@ local function CheckpointOnUpdate(elapsed)
     if x == 0 and y == 0 then return end
     x, y = x*100, y*100
 
+    -- Debug tick
     if debugTick then
         DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Tick: x=%.3f y=%.3f", x, y))
     end
@@ -75,6 +63,7 @@ local function CheckpointOnUpdate(elapsed)
         end
     end
 
+    -- Enter/Exit logic
     if insideCheckpoint then
         if currentCheckpoint ~= insideCheckpoint then
             DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r %s enters checkpoint: %s", UnitName("player"), insideCheckpoint))
@@ -88,26 +77,6 @@ local function CheckpointOnUpdate(elapsed)
     end
 end
 
--- Countdown before starting detection
-local function StartCountdown()
-    countdown = 10
-    local cdTimer = 0
-    TheGreatIceflowRelayFrame:SetScript("OnUpdate", SafeOnUpdate(function(elapsed)
-        cdTimer = cdTimer + elapsed
-        if cdTimer >= 1 and countdown > 0 then
-            DEFAULT_CHAT_FRAME:AddMessage(string.format("|cff00ffff[Iceflow Relay]|r Starting in %d...", countdown))
-            countdown = countdown - 1
-            cdTimer = 0
-        elseif countdown <= 0 then
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay started!")
-            updateTimer = 0
-            elapsedTotal = 0
-            running = true
-            TheGreatIceflowRelayFrame:SetScript("OnUpdate", SafeOnUpdate(CheckpointOnUpdate))
-        end
-    end))
-end
-
 -- Slash commands
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
@@ -115,14 +84,17 @@ SlashCmdList["ICEFLOW"] = function(msg)
     if m == "start" then
         if running then
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Already running!")
-        else
-            StartCountdown()
+            return
         end
+        running = true
+        updateTimer = 0
+        TheGreatIceflowRelayFrame:SetScript("OnUpdate", SafeOnUpdate(CheckpointOnUpdate))
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay started! Checking position every 0.5 seconds.")
     elseif m == "end" then
         if running then
             running = false
             TheGreatIceflowRelayFrame:SetScript("OnUpdate", nil)
-            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped manually.")
+            DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay stopped.")
         else
             DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Relay is not running.")
         end
