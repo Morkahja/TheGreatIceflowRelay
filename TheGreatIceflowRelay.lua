@@ -126,3 +126,22 @@ SlashCmdList["ICEFLOW"] = function(msg)
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r Usage: /iceflow start | end | pos | check | checkpoints | tick")
     end
 end
+
+---------------------------------------------------------
+-- Ball detection frame
+---------------------------------------------------------
+local BallTrackerFrame = CreateFrame("Frame")
+BallTrackerFrame:RegisterEvent("BAG_UPDATE")
+
+BallTrackerFrame:SetScript("OnEvent", function(self, event, bagID)
+    for b = 0, NUM_BAG_SLOTS do
+        local slots = GetContainerNumSlots(b)
+        for s = 1, slots do
+            local itemID = GetContainerItemID(b, s)
+            if itemID == 21229 then -- Heavy Leather Ball ID
+                DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r You received the Heavy Leather Ball!")
+                return
+            end
+        end
+    end
+end)
