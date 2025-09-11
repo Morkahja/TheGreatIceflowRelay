@@ -19,7 +19,7 @@ local DUN_MOROGH_NAME = "Dun Morogh"  -- internal zone check
 local running = false
 local debugTick = false
 local lastMessageTime = 0
-local messageCooldown = 3 -- seconds
+local messageCooldown = 2 -- seconds
 
 -- Helper: get validated player position
 local function GetPlayerXY()
