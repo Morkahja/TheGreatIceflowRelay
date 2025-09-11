@@ -52,6 +52,26 @@ local function GetPlayerXY()
     return x * 100, y * 100
 end
 
+-- Start the relay run
+local function StartRelay()
+    running = true
+    playerShards = 0
+    visitedCheckpoints = {}
+    hasBall = false
+    totalBallTime = 0
+    lastCheckpointCheck = 0
+    lastBallCheck = 0
+    TheGreatIceflowRelayFrame:Show()
+    RelayGroupMessage("Let the Great Iceflow Relay begin! Ready, gooo!!!")
+end
+
+-- Stop relay run
+local function StopRelay()
+    running = false
+    TheGreatIceflowRelayFrame:Hide()
+    RelayLocalMessage("Iceflow Relay stopped.")
+end
+
 -- Check for checkpoints and manage shards
 local function CheckCheckpoint()
     local x, y = GetPlayerXY()
@@ -66,9 +86,7 @@ local function CheckCheckpoint()
             insideAnyCheckpoint = true
             if cp.name == "Brewnall Village – Starting Stage" then
                 if not startTriggered then
-                    playerShards = 0
-                    visitedCheckpoints = {}
-                    RelayGroupMessage("I am at the starting stage. My Iceflow shard counter has been reset.")
+                    StartRelay()
                     startTriggered = true
                 end
                 finishTriggered = false
@@ -117,7 +135,6 @@ local function CheckBallInInventory()
     end
 
     if foundBall then
-        -- Add +1 sec each time we check and still have the ball
         totalBallTime = totalBallTime + 1
         if not hasBall then
             hasBall = true
@@ -153,30 +170,8 @@ end)
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
     local m = string.lower(msg or "")
-    if m == "start" then
-        if running then
-            RelayLocalMessage("Already running!")
-            return
-        end
-        running = true
-        playerShards = 0
-        visitedCheckpoints = {}
-        startTriggered = false
-        finishTriggered = false
-        hasBall = false
-        totalBallTime = 0
-        lastCheckpointCheck = 0
-        lastBallCheck = 0
-        TheGreatIceflowRelayFrame:Show()
-        RelayGroupMessage("Iceflow Relay started. Move around to track checkpoints.")
-    elseif m == "end" then
-        if running then
-            running = false
-            TheGreatIceflowRelayFrame:Hide()
-            RelayLocalMessage("Iceflow Relay stopped.")
-        else
-            RelayLocalMessage("Relay is not running.")
-        end
+    if m == "end" then
+        StopRelay()
     elseif m == "pos" then
         local x, y = GetPlayerXY()
         if not x then
@@ -212,6 +207,6 @@ SlashCmdList["ICEFLOW"] = function(msg)
     elseif m == "ballcheck" then
         CheckBallInInventory()
     else
-        RelayLocalMessage("Usage: /iceflow start | end | pos | check | checkpoints | ballcheck")
+        RelayLocalMessage("Usage: /iceflow end | pos | check | checkpoints | ballcheck")
     end
 end
