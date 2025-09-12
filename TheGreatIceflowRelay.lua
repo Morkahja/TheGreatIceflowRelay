@@ -174,7 +174,7 @@ local function CheckBallInInventory(autoMode)
                 hasBall = true
                 RelayLocalMessage("You received a Heavy Leather Ball! Timer started.")
             else
-                RelayLocalMessage("You have the Heavy Leather Ball! Pass it! [" .. totalBallTime .. " ]")
+                RelayLocalMessage("You have the Heavy Leather Ball! Pass it! [" .. totalBallTime .. "]")
             end
         else
             if hasBall then
