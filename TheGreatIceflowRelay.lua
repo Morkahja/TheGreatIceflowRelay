@@ -1,17 +1,20 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- /iceflow ready arms the addon, stepping into the starting stage begins the run.
--- Checkpoint messages -> party (if grouped) or local chat.
--- Ball messages -> local only. Auto-check increments +1 sec per tick when holding ball.
+-- Iceflow Relay Addon
 
--- Frame
+------------------------------------------------------------
+-- FRAME
+------------------------------------------------------------
 TheGreatIceflowRelayFrame = TheGreatIceflowRelayFrame or CreateFrame("Frame")
 TheGreatIceflowRelayFrame:Hide()
 
--- Config / checkpoints
-local BALL_NAME = "Heavy Leather Ball" -- adjust if needed
-local CHECK_INTERVAL = 2 -- seconds (both checkpoint and ball auto-check intervals)
+------------------------------------------------------------
+-- CONFIG
+------------------------------------------------------------
+local BALL_NAME = "Heavy Leather Ball" -- item to track
+local CHECK_INTERVAL = 2               -- seconds between checks
 
+-- Rectangle checkpoints (zone: Dun Morogh)
 local checkpoints = {
     { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
     { name = "The Tree", minX = 32.65, maxX = 32.8, minY = 39.1, maxY = 39.25 },
@@ -21,21 +24,25 @@ local checkpoints = {
     { name = "Brewnall Village – Finish Stage", minX = 31.4, maxX = 31.6, minY = 44.7, maxY = 44.9 },
 }
 
--- State
-local armed = false        -- set by /iceflow ready
-local runActive = false    -- set to true when player enters start while armed
-local lastCheckTime = 0
+------------------------------------------------------------
+-- STATE
+------------------------------------------------------------
+local armed = false        -- armed by /iceflow ready
+local runActive = false    -- true when the relay has begun
+local lastCheck = 0        -- timestamp of last update cycle
 
 local playerShards = 0
 local visitedCheckpoints = {}
 local startTriggered = false
 local finishTriggered = false
 
--- Ball state (auto counted only while runActive)
+-- Ball state
 local hasBall = false
 local totalBallTime = 0
 
--- Helpers for output
+------------------------------------------------------------
+-- HELPER FUNCTIONS
+------------------------------------------------------------
 local function RelayGroupMessage(msg)
     if GetNumPartyMembers() > 0 then
         SendChatMessage("[Iceflow Relay] " .. msg, "PARTY")
@@ -48,7 +55,7 @@ local function RelayLocalMessage(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cffaaaaaa[Iceflow Ball]|r " .. msg)
 end
 
--- Position helper (returns coords scaled to 0..100)
+-- Player position (x,y scaled to 0..100)
 local function GetPlayerXY()
     SetMapZoom(0)
     SetMapToCurrentZone()
@@ -57,7 +64,9 @@ local function GetPlayerXY()
     return x * 100, y * 100
 end
 
--- Start run (called when entering start stage while armed)
+------------------------------------------------------------
+-- CORE LOGIC
+------------------------------------------------------------
 local function StartRun()
     runActive = true
     playerShards = 0
@@ -69,7 +78,6 @@ local function StartRun()
     RelayGroupMessage("Let the Great Iceflow Relay begin! Ready, gooo!!!")
 end
 
--- Stop / disarm run
 local function StopAll()
     armed = false
     runActive = false
@@ -77,35 +85,23 @@ local function StopAll()
     RelayLocalMessage("Iceflow Relay disarmed/stopped.")
 end
 
--- Checkpoint detection and messaging
+-- Check if player is inside a checkpoint
 local function CheckCheckpoint()
-    local xy = GetPlayerXY()
-    if not xy then return end
-    local x, y = xy, nil
-    -- because GetPlayerXY returns single value when used wrong earlier in conversation,
-    -- do proper assignment:
-    x, y = GetPlayerXY()
+    local x, y = GetPlayerXY()
     if not x then return end
 
-    local zone = GetZoneText()
-    if zone ~= "Dun Morogh" then
-        return
-    end
+    if GetZoneText() ~= "Dun Morogh" then return end
 
     local insideAny = false
     for _, cp in ipairs(checkpoints) do
         if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
             insideAny = true
-            -- START: always starts run when armed and not already active
             if cp.name == "Brewnall Village – Starting Stage" then
                 if armed and not runActive then
                     StartRun()
                 end
-                -- keep a local flag so we don't spam while staying in the zone
                 startTriggered = true
                 finishTriggered = false
-
-            -- FINISH: only if runActive summarize once
             elseif cp.name == "Brewnall Village – Finish Stage" then
                 if runActive and not finishTriggered then
                     RelayGroupMessage(string.format(
@@ -113,25 +109,19 @@ local function CheckCheckpoint()
                         playerShards, totalBallTime
                     ))
                     finishTriggered = true
-                    -- end run so ballchecks stop until next start (but addon remains armed)
                     runActive = false
                 end
                 startTriggered = false
-
-            -- regular checkpoints: only active while runActive
             else
-                if runActive then
-                    if not visitedCheckpoints[cp.name] then
-                        visitedCheckpoints[cp.name] = true
-                        playerShards = playerShards + 1
-                        RelayGroupMessage(string.format(
-                            "I arrived at \"%s\" and collected 1 Iceflow shard. Total: %d",
-                            cp.name, playerShards
-                        ))
-                    end
+                if runActive and not visitedCheckpoints[cp.name] then
+                    visitedCheckpoints[cp.name] = true
+                    playerShards = playerShards + 1
+                    RelayGroupMessage(string.format(
+                        "I arrived at \"%s\" and collected 1 Iceflow shard. Total: %d",
+                        cp.name, playerShards
+                    ))
                 end
             end
-
             return
         end
     end
@@ -142,9 +132,7 @@ local function CheckCheckpoint()
     end
 end
 
--- Ball check function
--- autoMode = true when called from OnUpdate auto-checking (increments +1 sec when runActive)
--- autoMode = false when user calls /iceflow ballcheck (manual, does not increment timer)
+-- Ball check
 local function CheckBallInInventory(autoMode)
     local foundBall = false
     for b = 0, NUM_BAG_SLOTS do
@@ -162,13 +150,8 @@ local function CheckBallInInventory(autoMode)
     end
 
     if autoMode then
-        -- auto behavior only when runActive is true
-        if not runActive then
-            return
-        end
-
+        if not runActive then return end
         if foundBall then
-            -- every time auto says "have ball" we add +1 sec
             totalBallTime = totalBallTime + 1
             if not hasBall then
                 hasBall = true
@@ -182,38 +165,37 @@ local function CheckBallInInventory(autoMode)
                 RelayLocalMessage("You no longer have the Heavy Leather Ball.")
             end
         end
-
     else
-        -- manual check: do not alter timing or hasBall state; just report presence and total
         if foundBall then
-            RelayLocalMessage("You currently have a Heavy Leather Ball in your inventory. Total tracked time: " .. totalBallTime .. " sec")
+            RelayLocalMessage("You currently have a Heavy Leather Ball. Total tracked time: " .. totalBallTime .. " sec")
         else
             RelayLocalMessage("You do NOT have a Heavy Leather Ball in your inventory.")
         end
     end
 end
 
--- OnUpdate (time-driven, no elapsed arg)
-local lastCheck = 0
+------------------------------------------------------------
+-- FRAME SCRIPT
+------------------------------------------------------------
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
     if not armed and not runActive then return end
     local now = GetTime()
     if now - lastCheck >= CHECK_INTERVAL then
         lastCheck = now
-        -- always check checkpoints while armed so we can detect entering start stage
         CheckCheckpoint()
-        -- auto ball-check increments only after runActive true
-        CheckBallInInventory(true)
+        CheckBallInInventory(true) -- auto-mode
     end
 end)
 
--- Slash command handler:
+------------------------------------------------------------
+-- SLASH COMMANDS
+------------------------------------------------------------
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
     local m = string.lower(msg or "")
     if m == "ready" then
         if armed then
-            RelayLocalMessage("Already armed. Enter the starting stage to begin the run.")
+            RelayLocalMessage("Already armed. Enter the starting stage to begin.")
             return
         end
         armed = true
@@ -226,7 +208,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
         totalBallTime = 0
         lastCheck = 0
         TheGreatIceflowRelayFrame:Show()
-        RelayLocalMessage("Iceflow Relay armed. Step into the Brewnall Starting Stage to begin the run.")
+        RelayLocalMessage("Relay armed. Step into the starting stage to begin the run.")
     elseif m == "end" then
         StopAll()
     elseif m == "pos" then
@@ -242,15 +224,15 @@ SlashCmdList["ICEFLOW"] = function(msg)
             RelayLocalMessage("Position unavailable.")
             return
         end
-        local insideCheckpoint = nil
+        local inside = nil
         for _, cp in ipairs(checkpoints) do
             if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-                insideCheckpoint = cp.name
+                inside = cp.name
                 break
             end
         end
-        if insideCheckpoint then
-            RelayLocalMessage("Player is in checkpoint: " .. insideCheckpoint)
+        if inside then
+            RelayLocalMessage("Player is in checkpoint: " .. inside)
         else
             RelayLocalMessage("Player is not in any checkpoint")
         end
@@ -262,65 +244,46 @@ SlashCmdList["ICEFLOW"] = function(msg)
             ))
         end
     elseif m == "ballcheck" then
-        CheckBallInInventory(false) -- manual check (no increment)
+        CheckBallInInventory(false)
     else
         RelayLocalMessage("Usage: /iceflow ready | end | pos | check | checkpoints | ballcheck")
     end
 end
 
-
-----------------------------------------------------------------------
--- Iceflow Relay Addon Documentation & Functionality Overview
-----------------------------------------------------------------------
-
--- Core Functionality:
--- 1. Position Tracking
---    - Uses GetPlayerMapPosition("player") to get current (x,y) coordinates.
---    - Converts normalized values (0–1) to zone coordinates (0–100).
---    - Displays current position in chat or in a UI frame.
+------------------------------------------------------------
+-- FUNCTIONALITY SUMMARY
+------------------------------------------------------------
+-- /iceflow ready
+--   Arms the addon. Entering the Starting Stage zone begins the relay run.
 --
--- 2. Checkpoint Detection
---    - Each checkpoint is defined as a triangle by three coordinates (A,B,C).
---    - Uses barycentric coordinate math to check if the player is inside.
---    - Checkpoints are stored in an ordered list (course path).
---    - When entering a checkpoint, announces progress in raid/party chat.
+-- /iceflow end
+--   Stops and disarms the addon.
 --
--- 3. Relay Ball Mechanic
---    - Players must throw the leather ball between teammates.
---    - Addon tracks time the ball spends in a player’s inventory.
---    - Long possession triggers a penalty (announced in chat).
---    - Successful passes reduce average time per checkpoint = efficiency score.
+-- /iceflow pos
+--   Prints current player coordinates (x,y).
 --
--- 4. Fairness Rules
---    - Speed-boost abilities (Sprint, Aspect of the Cheetah, etc.) may be
---      restricted by house rules (e.g. penalty or nullifying the checkpoint).
---    - Addon can announce violations if buffs are detected while in relay mode.
+-- /iceflow check
+--   Reports whether the player is currently inside a checkpoint zone.
 --
--- 5. Communication
---    - Addon outputs messages in raid/party chat:
---         * Current position (debugging).
---         * Checkpoint reached.
---         * Foul committed (e.g., too slow pass, speed buff detected).
---         * Relay finished with total time & efficiency.
+-- /iceflow checkpoints
+--   Lists all checkpoint rectangle coordinates.
 --
--- 6. Slash Commands
---    - /iceflow start       → Starts tracking and resets state.
---    - /iceflow stop        → Stops tracking and hides the frame.
---    - /iceflow debug       → Toggles debug output (coords, zone info).
---    - /iceflow help        → Prints command overview.
+-- /iceflow ballcheck
+--   Manual ball inventory check (does not add to timer).
 --
--- 7. Frame Handling
---    - Core frame listens to player position changes.
---    - OnUpdate loops avoided where possible; prefer event-driven logic.
---    - Frame hidden when addon not running, visible only in active relay.
+-- Automatic behavior:
+--   - When armed, entering the Starting Stage triggers the run:
+--       * Shards reset
+--       * Total ball timer reset
+--       * Message to group: "Let the Great Iceflow Relay begin! Ready, gooo!!!"
+--   - Moving through checkpoints adds shards (group messages).
+--   - Entering Finish Stage ends the run, posting shard count + total ball time.
+--   - Every 2s while running:
+--       * Checkpoints are monitored
+--       * Inventory checked for "Heavy Leather Ball"
+--           - If present: adds +1 sec to totalBallTime, prints local message
+--           - If removed: prints local message
 --
--- Developer Notes:
--- - Turtle WoW quirks: GetCurrentMapContinent() / GetCurrentMapAreaID() may be nil.
--- - Always verify in-game zone names (GetZoneText() vs minimap label).
--- - All math assumes coordinates scaled to 0–100 range.
--- - Extendable: more checkpoints can be added simply by appending to the list.
--- - Future idea: Add scoreboard export to SavedVariables for persistence.
---
--- Last Updated: 2025-09-12
-----------------------------------------------------------------------
-
+-- Output rules:
+--   * Start, checkpoint, finish messages -> party if grouped, else local chat
+--   * Ball detection messages -> local chat only
