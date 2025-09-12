@@ -267,3 +267,60 @@ SlashCmdList["ICEFLOW"] = function(msg)
         RelayLocalMessage("Usage: /iceflow ready | end | pos | check | checkpoints | ballcheck")
     end
 end
+
+
+----------------------------------------------------------------------
+-- Iceflow Relay Addon Documentation & Functionality Overview
+----------------------------------------------------------------------
+
+-- Core Functionality:
+-- 1. Position Tracking
+--    - Uses GetPlayerMapPosition("player") to get current (x,y) coordinates.
+--    - Converts normalized values (0–1) to zone coordinates (0–100).
+--    - Displays current position in chat or in a UI frame.
+--
+-- 2. Checkpoint Detection
+--    - Each checkpoint is defined as a triangle by three coordinates (A,B,C).
+--    - Uses barycentric coordinate math to check if the player is inside.
+--    - Checkpoints are stored in an ordered list (course path).
+--    - When entering a checkpoint, announces progress in raid/party chat.
+--
+-- 3. Relay Ball Mechanic
+--    - Players must throw the leather ball between teammates.
+--    - Addon tracks time the ball spends in a player’s inventory.
+--    - Long possession triggers a penalty (announced in chat).
+--    - Successful passes reduce average time per checkpoint = efficiency score.
+--
+-- 4. Fairness Rules
+--    - Speed-boost abilities (Sprint, Aspect of the Cheetah, etc.) may be
+--      restricted by house rules (e.g. penalty or nullifying the checkpoint).
+--    - Addon can announce violations if buffs are detected while in relay mode.
+--
+-- 5. Communication
+--    - Addon outputs messages in raid/party chat:
+--         * Current position (debugging).
+--         * Checkpoint reached.
+--         * Foul committed (e.g., too slow pass, speed buff detected).
+--         * Relay finished with total time & efficiency.
+--
+-- 6. Slash Commands
+--    - /iceflow start       → Starts tracking and resets state.
+--    - /iceflow stop        → Stops tracking and hides the frame.
+--    - /iceflow debug       → Toggles debug output (coords, zone info).
+--    - /iceflow help        → Prints command overview.
+--
+-- 7. Frame Handling
+--    - Core frame listens to player position changes.
+--    - OnUpdate loops avoided where possible; prefer event-driven logic.
+--    - Frame hidden when addon not running, visible only in active relay.
+--
+-- Developer Notes:
+-- - Turtle WoW quirks: GetCurrentMapContinent() / GetCurrentMapAreaID() may be nil.
+-- - Always verify in-game zone names (GetZoneText() vs minimap label).
+-- - All math assumes coordinates scaled to 0–100 range.
+-- - Extendable: more checkpoints can be added simply by appending to the list.
+-- - Future idea: Add scoreboard export to SavedVariables for persistence.
+--
+-- Last Updated: 2025-09-12
+----------------------------------------------------------------------
+
