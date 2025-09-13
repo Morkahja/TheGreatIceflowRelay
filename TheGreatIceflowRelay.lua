@@ -42,6 +42,7 @@ local BALL_CATCH_COOLDOWN = 0.1
 
 -- Target distance penalty
 local targetPenaltyPoints = 0
+local totalPenalty = 0
 
 -------------------------------------------------
 -- 4. Output helpers
@@ -78,6 +79,8 @@ local function StartRun()
     visitedCheckpoints = {}
     totalBallTime = 0
     hasBall = false
+    targetPenaltyPoints = 0
+    totalPenalty = 0
     startTriggered = true
     finishTriggered = false
     RelayGroupMessage("Let the Great Iceflow Relay begin! Ready, gooo!!!")
@@ -108,9 +111,11 @@ local function CheckCheckpoint()
                 finishTriggered = false
             elseif cp.name == "Brewnall Village – Finish Stage" then
                 if runActive and not finishTriggered then
+                    -- Sum total penalties
+                    totalPenalty = targetPenaltyPoints + totalBallTime
                     RelayGroupMessage(string.format(
-                        "I finished the relay with %d Iceflow shards! Total ball time: %d sec",
-                        playerShards, totalBallTime
+                        "%s finished the Great Iceflow Relay with %d Iceflow shards! Total shards: %d Total penalty: %d",
+                        UnitName("player"), playerShards, playerShards, totalPenalty
                     ))
                     finishTriggered = true
                     runActive = false
@@ -178,14 +183,25 @@ local function CheckBallInInventory(autoMode)
     end
 end
 
+-- ITEM_PUSH handler (catching ball = +1 shard)
+local function OnItemPush(arg1, arg2)
+    if not runActive then return end
+    if arg2 and string.find(arg2, BALL_ICON) then
+        local now = GetTime()
+        if now - lastBallCatch > BALL_CATCH_COOLDOWN then
+            lastBallCatch = now
+            playerShards = playerShards + 1
+            RelayLocalMessage("Caught a Heavy Leather Ball! +1 shard. Total: " .. playerShards)
+        end
+    end
+end
+
 -------------------------------------------------
 -- 8b. Target distance helper
 -------------------------------------------------
 local function CheckTargetDistance()
     if not UnitExists("target") then return end
-
     local tooClose = CheckInteractDistance("target", 1) or CheckInteractDistance("target", 4)
-
     if tooClose then
         targetPenaltyPoints = targetPenaltyPoints + 1
         RelayLocalMessage("|cffff0000Target too close!|r Penalty: "..targetPenaltyPoints)
@@ -239,6 +255,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
         lastCheck = 0
         lastBallCatch = 0
         targetPenaltyPoints = 0
+        totalPenalty = 0
         TheGreatIceflowRelayFrame:Show()
         RelayLocalMessage("Iceflow Relay armed. Step into the Brewnall Starting Stage to begin the run.")
     elseif m == "end" then
