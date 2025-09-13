@@ -15,9 +15,9 @@ TheGreatIceflowRelayFrame:Hide()
 -------------------------------------------------
 -- 2. Config / checkpoints
 -------------------------------------------------
-local BALL_NAME = "Heavy Leather Ball" -- exact item name
-local BALL_ICON = "INV_Misc_ThrowingBall_01" -- used in ITEM_PUSH check
-local CHECK_INTERVAL = 2 -- seconds (both checkpoint and ball auto-check intervals)
+local BALL_NAME = "Heavy Leather Ball"
+local BALL_ICON = "INV_Misc_ThrowingBall_01"
+local CHECK_INTERVAL = 2 -- seconds
 
 local checkpoints = {
     { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
@@ -43,7 +43,10 @@ local hasBall = false
 local totalBallTime = 0
 local lastCheck = 0
 local lastBallCatch = 0
-local BALL_CATCH_COOLDOWN = 0.1 -- prevent duplicate ITEM_PUSH counts
+local BALL_CATCH_COOLDOWN = 0.1
+
+-- Target distance penalty
+local targetPenaltyPoints = 0
 
 -------------------------------------------------
 -- 4. Output helpers
@@ -183,7 +186,6 @@ local function CheckBallInInventory(autoMode)
     end
 end
 
--- New: ITEM_PUSH handler (catching ball = +1 shard)
 local function OnItemPush(arg1, arg2)
     if not runActive then return end
     if arg2 and string.find(arg2, BALL_ICON) then
@@ -197,26 +199,34 @@ local function OnItemPush(arg1, arg2)
 end
 
 -------------------------------------------------
+-- 8b. Target distance helper
+-------------------------------------------------
+local function CheckTargetDistance()
+    if not UnitExists("target") then return end
+
+    local tooClose = CheckInteractDistance("target", 1) or CheckInteractDistance("target", 4)
+
+    if tooClose then
+        targetPenaltyPoints = targetPenaltyPoints + 1
+        RelayLocalMessage("|cffff0000Target too close!|r Penalty: "..targetPenaltyPoints)
+    else
+        RelayLocalMessage("|cff00ff00Distance ok!|r")
+    end
+end
+
+-------------------------------------------------
 -- 9. OnUpdate loop
 -------------------------------------------------
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
     if not armed and not runActive then return end
-
     local now = GetTime()
     if now - lastCheck >= CHECK_INTERVAL then
         lastCheck = now
-
-        -- 1. Check if player is inside a checkpoint
         CheckCheckpoint()
-
-        -- 2. Check ball state and update timers
         CheckBallInInventory(true)
-
-        -- 3. Check target distance and print message
-        CheckTargetDistance()  -- prints "Target too close!" or "Distance ok!" every 2 sec
+        CheckTargetDistance()  -- integrated distance check
     end
 end)
-
 
 -------------------------------------------------
 -- 10. OnEvent handler
@@ -243,7 +253,7 @@ SlashCmdList["ICEFLOW"] = function(msg)
         playerShards = 0
         visitedCheckpoints = {}
         startTriggered = false
-        finishTriggered = false
+                finishTriggered = false
         hasBall = false
         totalBallTime = 0
         lastCheck = 0
@@ -295,21 +305,3 @@ end
 -- 12. Event registration
 -------------------------------------------------
 TheGreatIceflowRelayFrame:RegisterEvent("ITEM_PUSH")
-
--------------------------------------------------
--- 13. New helper: monitor target distance
--------------------------------------------------
-local function CheckTargetDistance()
-    if not UnitExists("target") then
-        return
-    end
-
-    local tooClose = CheckInteractDistance("target", 1) or CheckInteractDistance("target", 4)
-
-    if tooClose then
-        RelayLocalMessage("|cffff0000Target too close!|r")
-    else
-        RelayLocalMessage("|cff00ff00Distance ok!|r")
-    end
-end
-
