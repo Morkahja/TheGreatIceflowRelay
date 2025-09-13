@@ -308,10 +308,21 @@ SlashCmdList["ICEFLOW"] = function(msg)
         end
     elseif m == "ballcheck" then
         CheckBallInInventory(false)
+    elseif m == "rules" then
+        RelayGroupMessage("=== Iceflow Relay Rules ===")
+        RelayGroupMessage("1. Arm the relay with /iceflow ready.")
+        RelayGroupMessage("2. Enter the Brewnall Village Starting Stage to begin the run.")
+        RelayGroupMessage("3. Each checkpoint grants +1 Iceflow shard (only once per run).")
+        RelayGroupMessage("4. Catching a Heavy Leather Ball gives +1 shard instantly.")
+        RelayGroupMessage("5. Holding the Ball adds +1 penalty per tick until passed.")
+        RelayGroupMessage("6. Being closer than ~28 yards to teammates adds penalties.")
+        RelayGroupMessage("7. Finish the run at Brewnall Village Finish Stage.")
+        RelayGroupMessage("8. Final score = Shards - Penalties.")
     else
-        RelayLocalMessage("Usage: /iceflow ready | end | pos | check | checkpoints | ballcheck")
+        RelayLocalMessage("Usage: /iceflow ready | end | pos | check | checkpoints | ballcheck | rules")
     end
 end
+
 
 -------------------------------------------------
 -- 13. Event registration
