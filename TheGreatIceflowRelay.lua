@@ -119,9 +119,10 @@ local function CheckCheckpoint()
                 if runActive and not finishTriggered then
                     local netShards = playerShards - totalPenalty
                     RelayGroupMessage(string.format(
-                        "%s finished the Great Iceflow Relay with %d Iceflow shards! Total shards: %d Total penalty: %d Net shards: %d",
-                        UnitName("player"), playerShards, playerShards, totalPenalty, netShards
+                        "%s finished the Great Iceflow Relay with %d Iceflow shards! Total shards: %d Total penalty: %d Good Game, Well Played!",
+                        UnitName("player"), netShards, playerShards, totalPenalty
                     ))
+
                     finishTriggered = true
                     runActive = false -- stop penalties after finish
                 end
