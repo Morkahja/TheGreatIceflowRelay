@@ -113,9 +113,12 @@ local function CheckCheckpoint()
                 if runActive and not finishTriggered then
                     -- Sum total penalties
                     totalPenalty = targetPenaltyPoints + totalBallTime
+                    local netShards = playerShards - totalPenalty
+                    if netShards < 0 then netShards = 0 end
+
                     RelayGroupMessage(string.format(
                         "%s finished the Great Iceflow Relay with %d Iceflow shards! Total shards: %d Total penalty: %d",
-                        UnitName("player"), playerShards, playerShards, totalPenalty
+                        UnitName("player"), netShards, playerShards, totalPenalty
                     ))
                     finishTriggered = true
                     runActive = false
@@ -201,7 +204,8 @@ end
 -------------------------------------------------
 local function CheckTargetDistance()
     if not UnitExists("target") then return end
-    local tooClose = CheckInteractDistance("target", 1) or CheckInteractDistance("target", 4)
+    local tooClose = CheckInteractDistance("target", 1) or CheckInteractDistance("target", 2)
+                      or CheckInteractDistance("target", 3) or CheckInteractDistance("target", 4)
     if tooClose then
         targetPenaltyPoints = targetPenaltyPoints + 1
         RelayLocalMessage("|cffff0000Target too close!|r Penalty: "..targetPenaltyPoints)
