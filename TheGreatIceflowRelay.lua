@@ -1,10 +1,5 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
--- /iceflow ready arms the addon, stepping into the starting stage begins the run.
--- Checkpoint messages -> party (if grouped) or local chat.
--- Ball messages -> local only.
--- Auto-check increments +1 sec per tick when holding ball.
--- New feature: catching a Heavy Leather Ball via ITEM_PUSH grants +1 Iceflow shard immediately.
 
 -------------------------------------------------
 -- 1. Frame
@@ -105,14 +100,12 @@ local function CheckCheckpoint()
 
     for _, cp in ipairs(checkpoints) do
         if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
-            -- START
             if cp.name == "Brewnall Village – Starting Stage" then
                 if armed and not runActive then
                     StartRun()
                 end
                 startTriggered = true
                 finishTriggered = false
-            -- FINISH
             elseif cp.name == "Brewnall Village – Finish Stage" then
                 if runActive and not finishTriggered then
                     RelayGroupMessage(string.format(
@@ -123,7 +116,6 @@ local function CheckCheckpoint()
                     runActive = false
                 end
                 startTriggered = false
-            -- REGULAR SHARD CHECKPOINT
             else
                 if runActive and not visitedCheckpoints[cp.name] then
                     visitedCheckpoints[cp.name] = true
@@ -186,18 +178,6 @@ local function CheckBallInInventory(autoMode)
     end
 end
 
-local function OnItemPush(arg1, arg2)
-    if not runActive then return end
-    if arg2 and string.find(arg2, BALL_ICON) then
-        local now = GetTime()
-        if now - lastBallCatch > BALL_CATCH_COOLDOWN then
-            lastBallCatch = now
-            playerShards = playerShards + 1
-            RelayLocalMessage("Caught a Heavy Leather Ball! +1 shard. Total: " .. playerShards)
-        end
-    end
-end
-
 -------------------------------------------------
 -- 8b. Target distance helper
 -------------------------------------------------
@@ -224,7 +204,7 @@ TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
         lastCheck = now
         CheckCheckpoint()
         CheckBallInInventory(true)
-        CheckTargetDistance()  -- integrated distance check
+        CheckTargetDistance()
     end
 end)
 
@@ -253,11 +233,12 @@ SlashCmdList["ICEFLOW"] = function(msg)
         playerShards = 0
         visitedCheckpoints = {}
         startTriggered = false
-                finishTriggered = false
+        finishTriggered = false
         hasBall = false
         totalBallTime = 0
         lastCheck = 0
         lastBallCatch = 0
+        targetPenaltyPoints = 0
         TheGreatIceflowRelayFrame:Show()
         RelayLocalMessage("Iceflow Relay armed. Step into the Brewnall Starting Stage to begin the run.")
     elseif m == "end" then
