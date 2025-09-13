@@ -274,6 +274,8 @@ SlashCmdList["ICEFLOW"] = function(msg)
         lastBallCatch = 0
         TheGreatIceflowRelayFrame:Show()
         RelayLocalMessage("Iceflow Relay armed. Step into the Brewnall Starting Stage to begin the run.")
+        -- Party/local message to announce arming
+        RelayGroupMessage(UnitName("player") .. " is ready! Let's go!")
     elseif m == "end" then
         StopAll()
     elseif m == "pos" then
