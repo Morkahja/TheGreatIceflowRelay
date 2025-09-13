@@ -1,5 +1,11 @@
 -- TheGreatIceflowRelay.lua
 -- Turtle WoW Lua 5.0 compatible
+-- /iceflow ready arms the addon, stepping into the starting stage begins the run.
+-- Checkpoint messages -> party (if grouped) or local chat.
+-- Ball messages -> local only.
+-- Auto-check increments +1 sec per tick when holding ball.
+-- New feature: catching a Heavy Leather Ball via ITEM_PUSH grants +1 Iceflow shard immediately.
+-- Fixed: penalty ticking only during active run (not when armed/finished).
 
 -------------------------------------------------
 -- 1. Frame
@@ -10,9 +16,9 @@ TheGreatIceflowRelayFrame:Hide()
 -------------------------------------------------
 -- 2. Config / checkpoints
 -------------------------------------------------
-local BALL_NAME = "Heavy Leather Ball"
+local BALL_NAME = "Heavy Leather Ball" -- exact item name
 local BALL_ICON = "INV_Misc_ThrowingBall_01"
-local CHECK_INTERVAL = 2 -- seconds
+local CHECK_INTERVAL = 2 -- seconds (checkpoint, ball, penalty checks)
 
 local checkpoints = {
     { name = "Brewnall Village – Starting Stage", minX = 31.3, maxX = 31.5, minY = 44.3, maxY = 44.5 },
@@ -40,8 +46,7 @@ local lastCheck = 0
 local lastBallCatch = 0
 local BALL_CATCH_COOLDOWN = 0.1
 
--- Target distance penalty
-local targetPenaltyPoints = 0
+-- Penalty state
 local totalPenalty = 0
 
 -------------------------------------------------
@@ -78,9 +83,8 @@ local function StartRun()
     playerShards = 0
     visitedCheckpoints = {}
     totalBallTime = 0
+    totalPenalty = 0 -- reset penalties on run start
     hasBall = false
-    targetPenaltyPoints = 0
-    totalPenalty = 0
     startTriggered = true
     finishTriggered = false
     RelayGroupMessage("Let the Great Iceflow Relay begin! Ready, gooo!!!")
@@ -88,7 +92,7 @@ end
 
 local function StopAll()
     armed = false
-    runActive = false
+    runActive = false -- stop penalty ticking
     TheGreatIceflowRelayFrame:Hide()
     RelayLocalMessage("Iceflow Relay disarmed/stopped.")
 end
@@ -103,26 +107,26 @@ local function CheckCheckpoint()
 
     for _, cp in ipairs(checkpoints) do
         if x >= cp.minX and x <= cp.maxX and y >= cp.minY and y <= cp.maxY then
+            -- START
             if cp.name == "Brewnall Village – Starting Stage" then
                 if armed and not runActive then
                     StartRun()
                 end
                 startTriggered = true
                 finishTriggered = false
+            -- FINISH
             elseif cp.name == "Brewnall Village – Finish Stage" then
                 if runActive and not finishTriggered then
-                    -- Sum total penalties
-                    totalPenalty = targetPenaltyPoints + totalBallTime
-                    local netShards = playerShards - totalPenalty -- can go negative
-
+                    local netShards = playerShards - totalPenalty
                     RelayGroupMessage(string.format(
-                        "%s finished the Great Iceflow Relay with %d Iceflow shards! Total shards: %d Total penalty: %d",
-                        UnitName("player"), netShards, playerShards, totalPenalty
+                        "%s finished the Great Iceflow Relay with %d Iceflow shards! Total shards: %d Total penalty: %d Net shards: %d",
+                        UnitName("player"), playerShards, playerShards, totalPenalty, netShards
                     ))
                     finishTriggered = true
-                    runActive = false
+                    runActive = false -- stop penalties after finish
                 end
                 startTriggered = false
+            -- REGULAR SHARD CHECKPOINT
             else
                 if runActive and not visitedCheckpoints[cp.name] then
                     visitedCheckpoints[cp.name] = true
@@ -164,6 +168,7 @@ local function CheckBallInInventory(autoMode)
         if not runActive then return end
         if foundBall then
             totalBallTime = totalBallTime + 1
+            totalPenalty = totalPenalty + 1
             if not hasBall then
                 hasBall = true
                 RelayLocalMessage("You received a Heavy Leather Ball! Timer started.")
@@ -199,22 +204,29 @@ local function OnItemPush(arg1, arg2)
 end
 
 -------------------------------------------------
--- 8b. Target distance helper
+-- 9. Target distance penalty
 -------------------------------------------------
 local function CheckTargetDistance()
+    if not runActive then return end
     if not UnitExists("target") then return end
-    local tooClose = CheckInteractDistance("target", 1) or CheckInteractDistance("target", 2)
-                      or CheckInteractDistance("target", 3) or CheckInteractDistance("target", 4)
+
+    local duel   = CheckInteractDistance("target", 3)  -- ~10y
+    local trade  = CheckInteractDistance("target", 2)  -- ~11y
+    local inspect= CheckInteractDistance("target", 1)  -- ~28y
+    local follow = CheckInteractDistance("target", 4)  -- ~28y
+
+    local tooClose = duel or trade or inspect or follow
+
     if tooClose then
-        targetPenaltyPoints = targetPenaltyPoints + 1
-        RelayLocalMessage("|cffff0000Target too close!|r Penalty: "..targetPenaltyPoints)
+        totalPenalty = totalPenalty + 1
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Target too close! Penalty: " .. totalPenalty .. "|r")
     else
-        RelayLocalMessage("|cff00ff00Distance ok!|r")
+        DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Distance ok!|r")
     end
 end
 
 -------------------------------------------------
--- 9. OnUpdate loop
+-- 10. OnUpdate loop
 -------------------------------------------------
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
     if not armed and not runActive then return end
@@ -228,7 +240,7 @@ TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
 end)
 
 -------------------------------------------------
--- 10. OnEvent handler
+-- 11. OnEvent handler
 -------------------------------------------------
 TheGreatIceflowRelayFrame:SetScript("OnEvent", function()
     if event == "ITEM_PUSH" then
@@ -237,7 +249,7 @@ TheGreatIceflowRelayFrame:SetScript("OnEvent", function()
 end)
 
 -------------------------------------------------
--- 11. Slash commands
+-- 12. Slash commands
 -------------------------------------------------
 SLASH_ICEFLOW1 = "/iceflow"
 SlashCmdList["ICEFLOW"] = function(msg)
@@ -255,10 +267,9 @@ SlashCmdList["ICEFLOW"] = function(msg)
         finishTriggered = false
         hasBall = false
         totalBallTime = 0
+        totalPenalty = 0
         lastCheck = 0
         lastBallCatch = 0
-        targetPenaltyPoints = 0
-        totalPenalty = 0
         TheGreatIceflowRelayFrame:Show()
         RelayLocalMessage("Iceflow Relay armed. Step into the Brewnall Starting Stage to begin the run.")
     elseif m == "end" then
@@ -303,6 +314,6 @@ SlashCmdList["ICEFLOW"] = function(msg)
 end
 
 -------------------------------------------------
--- 12. Event registration
+-- 13. Event registration
 -------------------------------------------------
 TheGreatIceflowRelayFrame:RegisterEvent("ITEM_PUSH")
