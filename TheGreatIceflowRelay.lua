@@ -168,14 +168,14 @@ local function CheckBallInInventory(autoMode)
     if autoMode then
         if not runActive then return end
         if foundBall then
-            totalBallTime = totalBallTime + 1
-            totalPenalty = totalPenalty + 1
-            if not hasBall then
-                hasBall = true
-                RelayLocalMessage("You received a Heavy Leather Ball! Timer started.")
-            else
-                RelayLocalMessage("Pass the Ball! Penalty: [" .. totalBallTime .. "]")
-            end
+        totalBallTime = totalBallTime + 1
+        totalPenalty = totalPenalty + 1
+        if not hasBall then
+            hasBall = true
+            RelayLocalMessage("You received a Heavy Leather Ball! Timer started.")
+        else
+            RelayLocalMessage("Pass the Ball! Penalty +1")
+        end
         else
             if hasBall then
                 hasBall = false
@@ -220,10 +220,11 @@ local function CheckTargetDistance()
 
     if tooClose then
         totalPenalty = totalPenalty + 1
-        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Target too close! Penalty: " .. totalPenalty .. "|r")
+        DEFAULT_CHAT_FRAME:AddMessage("|cffff0000Target too close! Penalty +1|r")
     else
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00Distance ok!|r")
     end
+
 end
 
 -------------------------------------------------
