@@ -113,8 +113,7 @@ local function CheckCheckpoint()
                 if runActive and not finishTriggered then
                     -- Sum total penalties
                     totalPenalty = targetPenaltyPoints + totalBallTime
-                    local netShards = playerShards - totalPenalty
-                    if netShards < 0 then netShards = 0 end
+                    local netShards = playerShards - totalPenalty -- can go negative
 
                     RelayGroupMessage(string.format(
                         "%s finished the Great Iceflow Relay with %d Iceflow shards! Total shards: %d Total penalty: %d",
