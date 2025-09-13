@@ -47,7 +47,7 @@ local lastBallCatch = 0
 local BALL_CATCH_COOLDOWN = 0.1
 
 -- Penalty state
-local totalPenalty = 0
+local totalPenalty = -1
 
 -------------------------------------------------
 -- 4. Output helpers
