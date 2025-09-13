@@ -53,12 +53,18 @@ local totalPenalty = -1
 -- 4. Output helpers
 -------------------------------------------------
 local function RelayGroupMessage(msg)
-    if GetNumPartyMembers() > 0 then
+    if GetNumRaidMembers() > 0 then
+        -- Send to raid if in a raid
+        SendChatMessage("[Iceflow Relay] " .. msg, "RAID")
+    elseif GetNumPartyMembers() > 0 then
+        -- Send to party if in a party
         SendChatMessage("[Iceflow Relay] " .. msg, "PARTY")
     else
+        -- Otherwise print locally
         DEFAULT_CHAT_FRAME:AddMessage("|cff00ffff[Iceflow Relay]|r " .. msg)
     end
 end
+
 
 local function RelayLocalMessage(msg)
     DEFAULT_CHAT_FRAME:AddMessage("|cffaaaaaa[Iceflow Ball]|r " .. msg)
