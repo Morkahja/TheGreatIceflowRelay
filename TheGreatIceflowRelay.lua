@@ -201,13 +201,22 @@ end
 -------------------------------------------------
 TheGreatIceflowRelayFrame:SetScript("OnUpdate", function()
     if not armed and not runActive then return end
+
     local now = GetTime()
     if now - lastCheck >= CHECK_INTERVAL then
         lastCheck = now
+
+        -- 1. Check if player is inside a checkpoint
         CheckCheckpoint()
+
+        -- 2. Check ball state and update timers
         CheckBallInInventory(true)
+
+        -- 3. Check target distance and print message
+        CheckTargetDistance()  -- prints "Target too close!" or "Distance ok!" every 2 sec
     end
 end)
+
 
 -------------------------------------------------
 -- 10. OnEvent handler
@@ -286,3 +295,21 @@ end
 -- 12. Event registration
 -------------------------------------------------
 TheGreatIceflowRelayFrame:RegisterEvent("ITEM_PUSH")
+
+-------------------------------------------------
+-- 13. New helper: monitor target distance
+-------------------------------------------------
+local function CheckTargetDistance()
+    if not UnitExists("target") then
+        return
+    end
+
+    local tooClose = CheckInteractDistance("target", 1) or CheckInteractDistance("target", 4)
+
+    if tooClose then
+        RelayLocalMessage("|cffff0000Target too close!|r")
+    else
+        RelayLocalMessage("|cff00ff00Distance ok!|r")
+    end
+end
+
