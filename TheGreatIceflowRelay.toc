@@ -1,6 +1,6 @@
 ## Interface: 11200
 ## Title: The Great Iceflow Relay
-## Notes: Tracks checkpoints in Dun Morogh, manages Iceflow shards, and auto-tracks Heavy Leather Ball time.
+## Notes: type /iceflow rules for the rules and /iceflow for th commands.
 ## Author: BabuniGaming
 ## Version: 0.72
 
