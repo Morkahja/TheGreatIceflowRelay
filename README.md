@@ -64,6 +64,7 @@ Works in both party and raid groups.
 🗺️ Route
 
 The checkpoints can be tricky to find, so here’s a marked map of the course:
+https://imgur.com/a/eQcNdPX
 
 
 ✨ Closing words
